@@ -1,0 +1,18 @@
+# Binaries
+/server
+/bin/
+*.exe
+*.test
+*.out
+
+# Go cache and module download cache (only relevant if vendored locally)
+/vendor/
+
+# Env
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,28 @@
+# Env files anywhere
+**/.env
+**/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Backend (Go) build artefacts
+/backend/server
+/backend/bin/
+
+# Frontend (Flutter) build artefacts — see frontend/.gitignore for the full set
+/frontend/build/
+/frontend/.dart_tool/
+
+# Nginx TLS material (do not commit certs)
+/nginx/certs/
+
+# Logs
+*.log
+
