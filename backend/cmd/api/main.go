@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	redis "github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
@@ -40,6 +42,7 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
+	r.Use(corsMiddleware(cfg))
 	r.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -68,6 +71,26 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+}
+
+// corsMiddleware allows the Flutter web client to call the API from a browser.
+// In development any localhost/127.0.0.1 origin (flutter run -d chrome picks a
+// random port) is permitted. In production, lock this down to known web origins
+// via an env-driven allowlist before shipping.
+func corsMiddleware(cfg config.Config) gin.HandlerFunc {
+	return cors.New(cors.Config{
+		AllowOriginFunc: func(origin string) bool {
+			if cfg.AppEnv != "production" {
+				return strings.HasPrefix(origin, "http://localhost:") ||
+					strings.HasPrefix(origin, "http://127.0.0.1:")
+			}
+			return false
+		},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	})
 }
 
 func openDB(cfg config.Config) (*gorm.DB, error) {
