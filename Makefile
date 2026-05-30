@@ -1,7 +1,8 @@
 .PHONY: help build run test vet tidy fmt clean ci \
         flutter-bootstrap flutter-get flutter-run flutter-test flutter-analyze \
         up down logs ps stack-up \
-        migrate-up migrate-down migrate-status migrate-create migrate-force
+        migrate-up migrate-down migrate-status migrate-create migrate-force \
+        db-create db-shell
 
 BACKEND  := backend
 FRONTEND := frontend
@@ -22,7 +23,24 @@ DB_NAME       ?= tutor_platform
 DB_HOST_PORT  ?= 3306
 MIGRATE_HOST  ?= 127.0.0.1
 MIGRATE_PORT  ?= $(DB_HOST_PORT)
-DATABASE_URL  ?= mysql://$(DB_USER):$(DB_PASSWORD)@tcp($(MIGRATE_HOST):$(MIGRATE_PORT))/$(DB_NAME)
+
+# Admin credentials used by `db-create` to issue CREATE DATABASE. Defaults to
+# root + DB_ROOT_PASSWORD (falling back to DB_PASSWORD when root password
+# isn't set — handy when DB_USER itself is root). Override per-call when your
+# app user can't create databases:
+#   make db-create DB_ADMIN_USER=root DB_ADMIN_PASSWORD=secret
+DB_ROOT_PASSWORD  ?=
+DB_ADMIN_USER     ?= root
+DB_ADMIN_PASSWORD ?= $(if $(DB_ROOT_PASSWORD),$(DB_ROOT_PASSWORD),$(DB_PASSWORD))
+
+# URL-encode characters that conflict with the DSN syntax (e.g. `@` in the
+# password collides with the `user:pass@host` separator). Encode `%` first so
+# we don't double-encode anything sed already wrote.
+DB_PASSWORD_ENC := $(shell printf '%s' '$(DB_PASSWORD)' \
+	| sed -e 's/%/%25/g' -e 's/@/%40/g' -e 's/:/%3A/g' \
+	      -e 's,/,%2F,g'  -e 's/?/%3F/g' -e 's/\#/%23/g')
+
+DATABASE_URL  ?= mysql://$(DB_USER):$(DB_PASSWORD_ENC)@tcp($(MIGRATE_HOST):$(MIGRATE_PORT))/$(DB_NAME)
 
 .DEFAULT_GOAL := help
 
@@ -37,7 +55,8 @@ build:  ## Compile every backend package
 	cd $(BACKEND) && $(GO) build ./...
 
 run:  ## Run the API server in the foreground (loads backend/.env if present)
-	cd $(BACKEND) && $(GO) run ./cmd/api
+	@set -a; [ -f $(BACKEND)/.env ] && . $(BACKEND)/.env; set +a; \
+	 cd $(BACKEND) && $(GO) run ./cmd/api
 
 test:  ## Run backend tests
 	cd $(BACKEND) && $(GO) test ./...
@@ -86,7 +105,17 @@ ps:  ## Show docker compose service status
 # Requires the `migrate` CLI: brew install golang-migrate
 # Override the DSN with: make migrate-up DATABASE_URL='mysql://user:pass@tcp(host:port)/db'
 
-migrate-up:  ## Apply all pending migrations
+db-create:  ## Create $(DB_NAME) if it doesn't exist (uses local mysql CLI)
+	@MYSQL_PWD='$(DB_ADMIN_PASSWORD)' mysql \
+		-h$(MIGRATE_HOST) -P$(MIGRATE_PORT) -u$(DB_ADMIN_USER) \
+		-e 'CREATE DATABASE IF NOT EXISTS `$(DB_NAME)` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+	@echo "ok: database '$(DB_NAME)' ensured"
+
+db-shell:  ## Open a mysql shell against the configured database (uses local mysql CLI)
+	@MYSQL_PWD='$(DB_PASSWORD)' mysql \
+		-h$(MIGRATE_HOST) -P$(MIGRATE_PORT) -u$(DB_USER) $(DB_NAME)
+
+migrate-up: db-create  ## Apply all pending migrations (creates the database first if needed)
 	$(MIGRATE) -path $(BACKEND)/migrations -database "$(DATABASE_URL)" up
 
 migrate-down:  ## Roll back the most recent migration (one step)
