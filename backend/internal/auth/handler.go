@@ -13,26 +13,34 @@ type Handler struct {
 
 func NewHandler(s *Service) *Handler { return &Handler{svc: s} }
 
-func (h *Handler) RegisterStart(c *gin.Context) {
-	var req RegisterStartRequest
+// Register is step one of email signup: it validates the payload, stashes a
+// pending registration, and emails an OTP. No tokens yet — the client follows
+// up with VerifyRegistration. Returns 202 Accepted.
+func (h *Handler) Register(c *gin.Context) {
+	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.badRequest(c, err)
 		return
 	}
-	if err := h.svc.StartRegistration(c.Request.Context(), req.Phone, req.Role, req.Name); err != nil {
+	if err := h.svc.StartRegistration(c.Request.Context(), req.Email, req.Phone, req.Role, req.Name, req.Password); err != nil {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusAccepted, OTPSentResponse{ExpiresInSeconds: int(otpTTL.Seconds())})
+	c.JSON(http.StatusAccepted, PendingRegistrationResponse{
+		Email:   req.Email,
+		Message: "Verification code sent",
+	})
 }
 
-func (h *Handler) RegisterVerify(c *gin.Context) {
-	var req RegisterVerifyRequest
+// VerifyRegistration is step two: it confirms the OTP, creates the account, and
+// issues a token pair. Returns 201 Created.
+func (h *Handler) VerifyRegistration(c *gin.Context) {
+	var req VerifyRegistrationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.badRequest(c, err)
 		return
 	}
-	result, err := h.svc.VerifyRegistration(c.Request.Context(), req.Phone, req.Code)
+	result, err := h.svc.VerifyRegistration(c.Request.Context(), req.Email, req.Code)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -40,26 +48,13 @@ func (h *Handler) RegisterVerify(c *gin.Context) {
 	c.JSON(http.StatusCreated, toTokenResponse(result))
 }
 
-func (h *Handler) LoginStart(c *gin.Context) {
-	var req LoginStartRequest
+func (h *Handler) Login(c *gin.Context) {
+	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.badRequest(c, err)
 		return
 	}
-	if err := h.svc.StartLogin(c.Request.Context(), req.Phone); err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusAccepted, OTPSentResponse{ExpiresInSeconds: int(otpTTL.Seconds())})
-}
-
-func (h *Handler) LoginVerify(c *gin.Context) {
-	var req LoginVerifyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.badRequest(c, err)
-		return
-	}
-	result, err := h.svc.VerifyLogin(c.Request.Context(), req.Phone, req.Code)
+	result, err := h.svc.Login(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -87,8 +82,10 @@ func (h *Handler) badRequest(c *gin.Context, err error) {
 
 func (h *Handler) respondError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, ErrPhoneAlreadyExists):
+	case errors.Is(err, ErrEmailAlreadyExists), errors.Is(err, ErrPhoneAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errors.Is(err, ErrInvalidCredentials):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrInvalidOTP):
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrUserNotFound):

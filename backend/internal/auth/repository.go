@@ -52,8 +52,12 @@ func (r *Repository) FindByID(ctx context.Context, id uint64) (*User, error) {
 
 func (r *Repository) Create(ctx context.Context, u *User) error {
 	err := r.db.WithContext(ctx).Create(u).Error
+	// Email is the signup identity and is pre-checked in the service, so a
+	// duplicate here is almost always a race on the same email. (Phone is also
+	// UNIQUE but optional; a phone collision surfaces under the same error — rare
+	// enough not to warrant parsing which key tripped.)
 	if err != nil && isDuplicateKeyErr(err) {
-		return ErrPhoneAlreadyExists
+		return ErrEmailAlreadyExists
 	}
 	return err
 }

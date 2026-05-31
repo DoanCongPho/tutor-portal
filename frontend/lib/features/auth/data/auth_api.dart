@@ -10,39 +10,47 @@ class AuthApi {
 
   final ApiClient _client;
 
-  Future<void> registerStart({
-    required String phone,
+  /// Step one of email signup: the backend stashes a pending registration and
+  /// emails an OTP. Returns nothing — no tokens are issued until [verifyRegistration].
+  /// [phone] is optional contact info and is omitted from the payload when empty.
+  Future<void> startRegistration({
+    required String email,
     required String role,
     required String name,
+    required String password,
+    String? phone,
   }) async {
     await _client.postJson(
-      '/auth/register/start',
-      body: {'phone': phone, 'role': role, 'name': name},
+      '/auth/register',
+      body: {
+        'email': email,
+        'role': role,
+        'name': name,
+        'password': password,
+        if (phone != null && phone.isNotEmpty) 'phone': phone,
+      },
     );
   }
 
-  Future<AuthTokens> registerVerify({
-    required String phone,
+  /// Step two: confirm the emailed OTP and receive the token pair for the new account.
+  Future<AuthTokens> verifyRegistration({
+    required String email,
     required String code,
   }) async {
     final json = await _client.postJson(
       '/auth/register/verify',
-      body: {'phone': phone, 'code': code},
+      body: {'email': email, 'code': code},
     );
     return AuthTokens.fromJson(json);
   }
 
-  Future<void> loginStart(String phone) async {
-    await _client.postJson('/auth/login/start', body: {'phone': phone});
-  }
-
-  Future<AuthTokens> loginVerify({
-    required String phone,
-    required String code,
+  Future<AuthTokens> login({
+    required String email,
+    required String password,
   }) async {
     final json = await _client.postJson(
-      '/auth/login/verify',
-      body: {'phone': phone, 'code': code},
+      '/auth/login',
+      body: {'email': email, 'password': password},
     );
     return AuthTokens.fromJson(json);
   }

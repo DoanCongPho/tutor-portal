@@ -19,29 +19,40 @@ class AuthRepository {
 
   Future<String?> currentAccessToken() => _storage.readAccessToken();
 
+  /// Begins email signup. Triggers the backend to email an OTP; no session is
+  /// created until [verifyRegistration] succeeds. [phone] is optional contact info.
   Future<void> startRegistration({
-    required String phone,
+    required String email,
     required String role,
     required String name,
-  }) =>
-      _api.registerStart(phone: phone, role: role, name: name);
+    required String password,
+    String? phone,
+  }) {
+    return _api.startRegistration(
+      email: email,
+      role: role,
+      name: name,
+      password: password,
+      phone: phone,
+    );
+  }
 
+  /// Completes email signup with the OTP. On success the new account is logged
+  /// in and its tokens persisted.
   Future<AppUser> verifyRegistration({
-    required String phone,
+    required String email,
     required String code,
   }) async {
-    final tokens = await _api.registerVerify(phone: phone, code: code);
+    final tokens = await _api.verifyRegistration(email: email, code: code);
     await _persist(tokens);
     return tokens.user;
   }
 
-  Future<void> startLogin(String phone) => _api.loginStart(phone);
-
-  Future<AppUser> verifyLogin({
-    required String phone,
-    required String code,
+  Future<AppUser> login({
+    required String email,
+    required String password,
   }) async {
-    final tokens = await _api.loginVerify(phone: phone, code: code);
+    final tokens = await _api.login(email: email, password: password);
     await _persist(tokens);
     return tokens.user;
   }

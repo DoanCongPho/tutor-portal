@@ -13,15 +13,18 @@ const (
 )
 
 type User struct {
-	ID        uint64    `gorm:"primaryKey"`
-	Role      string    `gorm:"column:role;not null"`
-	Name      string    `gorm:"column:name;not null"`
-	Phone     *string   `gorm:"column:phone;uniqueIndex"`
-	Email     *string   `gorm:"column:email;uniqueIndex"`
-	AvatarURL *string   `gorm:"column:avatar_url"`
-	Status    string    `gorm:"column:status;not null;default:'active'"`
-	CreatedAt time.Time `gorm:"column:created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at"`
+	ID    uint64  `gorm:"primaryKey"`
+	Role  string  `gorm:"column:role;not null"`
+	Name  string  `gorm:"column:name;not null"`
+	Phone *string `gorm:"column:phone;uniqueIndex"`
+	Email *string `gorm:"column:email;uniqueIndex"`
+	// PasswordHash is a bcrypt hash. Never serialized to an API response — no
+	// DTO field maps to it. Set on register, compared on login.
+	PasswordHash string    `gorm:"column:password_hash;not null"`
+	AvatarURL    *string   `gorm:"column:avatar_url"`
+	Status       string    `gorm:"column:status;not null;default:'active'"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at"`
 }
 
 func (User) TableName() string { return "users" }

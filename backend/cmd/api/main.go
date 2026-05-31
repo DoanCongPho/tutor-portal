@@ -5,15 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	redis "github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
@@ -31,10 +28,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("db: %v", err)
 	}
-	rdb := tryOpenRedis(cfg)
-	if rdb != nil {
-		defer rdb.Close()
+	rdb, err := openRedis(cfg)
+	if err != nil {
+		log.Fatalf("redis: %v", err)
 	}
+	defer rdb.Close()
 
 	signer := pkgjwt.NewSigner(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 
@@ -42,7 +40,6 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
-	r.Use(corsMiddleware(cfg))
 	r.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -73,26 +70,6 @@ func main() {
 	}
 }
 
-// corsMiddleware allows the Flutter web client to call the API from a browser.
-// In development any localhost/127.0.0.1 origin (flutter run -d chrome picks a
-// random port) is permitted. In production, lock this down to known web origins
-// via an env-driven allowlist before shipping.
-func corsMiddleware(cfg config.Config) gin.HandlerFunc {
-	return cors.New(cors.Config{
-		AllowOriginFunc: func(origin string) bool {
-			if cfg.AppEnv != "production" {
-				return strings.HasPrefix(origin, "http://localhost:") ||
-					strings.HasPrefix(origin, "http://127.0.0.1:")
-			}
-			return false
-		},
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	})
-}
-
 func openDB(cfg config.Config) (*gorm.DB, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true&loc=UTC",
 		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
@@ -110,22 +87,14 @@ func openDB(cfg config.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
-// tryOpenRedis returns a Redis client when the address is reachable,
-// otherwise nil. auth.New transparently falls back to an in-process KV store
-// when nil. Fine for local dev; NOT for production — OTPs and sessions vanish
-// on restart.
-//
-// We probe with raw net.DialTimeout first so a missing Redis fails in ~1s
-// instead of go-redis's default several-second pool-retry storm.
-func tryOpenRedis(cfg config.Config) *redis.Client {
-	addr := cfg.RedisHost + ":" + cfg.RedisPort
-	conn, err := net.DialTimeout("tcp", addr, time.Second)
-	if err != nil {
-		log.Printf("WARN redis: not reachable at %s — using in-memory KV store (OTPs and sessions lost on restart). %v",
-			addr, err)
-		return nil
+func openRedis(cfg config.Config) (*redis.Client, error) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr: cfg.RedisHost + ":" + cfg.RedisPort,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		return nil, err
 	}
-	_ = conn.Close()
-	log.Printf("redis: connected at %s", addr)
-	return redis.NewClient(&redis.Options{Addr: addr})
+	return rdb, nil
 }

@@ -86,8 +86,8 @@ multiple student profiles.
 ### 5.1 Authentication & Accounts
 
 **Registration**
-- Register via phone number + OTP verification
-- Login via Google or Apple
+- Register via phone number + password (min 8 chars, stored as a bcrypt hash)
+- Login via phone number + password
 - Role selected at registration: Tutor or Parent
 - Student profiles created by parent, not self-registered
 

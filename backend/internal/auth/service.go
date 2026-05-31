@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math/big"
 	"strconv"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/DoanCongPho/tutor-portal/backend/pkg/email"
 	pkgjwt "github.com/DoanCongPho/tutor-portal/backend/pkg/jwt"
 )
 
@@ -20,10 +22,11 @@ type Service struct {
 	repo   *Repository
 	kv     kvStore
 	signer *pkgjwt.Signer
+	mailer email.Sender
 }
 
-func NewService(repo *Repository, kv kvStore, signer *pkgjwt.Signer) *Service {
-	return &Service{repo: repo, kv: kv, signer: signer}
+func NewService(repo *Repository, kv kvStore, signer *pkgjwt.Signer, mailer email.Sender) *Service {
+	return &Service{repo: repo, kv: kv, signer: signer, mailer: mailer}
 }
 
 type AuthResult struct {
@@ -34,36 +37,64 @@ type AuthResult struct {
 	User             *User
 }
 
+// pendingRegistration is the signup state stashed in the KV store between
+// StartRegistration and VerifyRegistration. The password is already bcrypt-hashed
+// here — plaintext never persists, not even for the short pending window. Phone
+// is optional (it's collected for contact but never OTP-verified).
 type pendingRegistration struct {
-	Phone string `json:"phone"`
-	Role  string `json:"role"`
-	Name  string `json:"name"`
-	Code  string `json:"code"`
+	Email        string `json:"email"`
+	Phone        string `json:"phone"`
+	Role         string `json:"role"`
+	Name         string `json:"name"`
+	PasswordHash string `json:"password_hash"`
+	Code         string `json:"code"`
 }
 
-func (s *Service) StartRegistration(ctx context.Context, phone, role, name string) error {
-	if _, err := s.repo.FindByPhone(ctx, phone); err == nil {
-		return ErrPhoneAlreadyExists
+// StartRegistration begins email-based signup. It hashes the password, stashes a
+// pending registration keyed by email in the KV store with a short TTL, and emails
+// a one-time code. No user row is created until the code is confirmed via
+// VerifyRegistration; the email must not already belong to an account. Phone, if
+// supplied, is carried through but not verified.
+func (s *Service) StartRegistration(ctx context.Context, email, phone, role, name, password string) error {
+	if _, err := s.repo.FindByEmail(ctx, email); err == nil {
+		return ErrEmailAlreadyExists
 	} else if !errors.Is(err, ErrUserNotFound) {
+		return err
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
 		return err
 	}
 	code, err := generateOTP()
 	if err != nil {
 		return err
 	}
-	payload, err := json.Marshal(pendingRegistration{Phone: phone, Role: role, Name: name, Code: code})
+	payload, err := json.Marshal(pendingRegistration{
+		Email:        email,
+		Phone:        phone,
+		Role:         role,
+		Name:         name,
+		PasswordHash: string(hash),
+		Code:         code,
+	})
 	if err != nil {
 		return err
 	}
-	if err := s.kv.Set(ctx, registerKey(phone), payload, otpTTL); err != nil {
+	if err := s.kv.Set(ctx, registerKey(email), payload, otpTTL); err != nil {
 		return err
 	}
-	log.Printf("[auth] OTP register phone=%s code=%s ttl=%s", phone, code, otpTTL)
-	return nil
+	subject := "Your TutorMatch verification code"
+	body := fmt.Sprintf("Your TutorMatch verification code is %s. It expires in %d minutes.", code, int(otpTTL.Minutes()))
+	return s.mailer.Send(ctx, email, subject, body)
 }
 
-func (s *Service) VerifyRegistration(ctx context.Context, phone, code string) (*AuthResult, error) {
-	key := registerKey(phone)
+// VerifyRegistration completes signup: it matches the code against the pending
+// registration, creates the user from the stashed details, drops the pending
+// entry, and issues a token pair. A missing/expired pending entry or a wrong
+// code both return ErrInvalidOTP (no distinction, to avoid leaking which it was).
+func (s *Service) VerifyRegistration(ctx context.Context, email, code string) (*AuthResult, error) {
+	key := registerKey(email)
 	raw, err := s.kv.Get(ctx, key)
 	if errors.Is(err, errKVNotFound) {
 		return nil, ErrInvalidOTP
@@ -79,12 +110,19 @@ func (s *Service) VerifyRegistration(ctx context.Context, phone, code string) (*
 		return nil, ErrInvalidOTP
 	}
 
-	phoneVal := pending.Phone
+	emailVal := pending.Email
 	user := &User{
-		Role:   pending.Role,
-		Name:   pending.Name,
-		Phone:  &phoneVal,
-		Status: StatusActive,
+		Role:         pending.Role,
+		Name:         pending.Name,
+		Email:        &emailVal,
+		PasswordHash: pending.PasswordHash,
+		Status:       StatusActive,
+	}
+	// Phone is optional — only attach it when one was supplied so we don't write
+	// an empty string into a UNIQUE column (which would collide across accounts).
+	if pending.Phone != "" {
+		phoneVal := pending.Phone
+		user.Phone = &phoneVal
 	}
 	if err := s.repo.Create(ctx, user); err != nil {
 		return nil, err
@@ -93,45 +131,23 @@ func (s *Service) VerifyRegistration(ctx context.Context, phone, code string) (*
 	return s.issueTokens(ctx, user)
 }
 
-func (s *Service) StartLogin(ctx context.Context, phone string) error {
-	user, err := s.repo.FindByPhone(ctx, phone)
-	if err != nil {
-		return err
+// Login verifies the email+password pair and issues a token pair. Both the
+// "email not found" and "wrong password" paths return ErrInvalidCredentials so
+// the endpoint can't be used to probe which email addresses are registered.
+func (s *Service) Login(ctx context.Context, email, password string) (*AuthResult, error) {
+	user, err := s.repo.FindByEmail(ctx, email)
+	if errors.Is(err, ErrUserNotFound) {
+		return nil, ErrInvalidCredentials
 	}
-	if user.Status == StatusSuspended {
-		return ErrAccountSuspended
-	}
-	code, err := generateOTP()
-	if err != nil {
-		return err
-	}
-	if err := s.kv.Set(ctx, loginKey(phone), []byte(code), otpTTL); err != nil {
-		return err
-	}
-	log.Printf("[auth] OTP login phone=%s code=%s ttl=%s", phone, code, otpTTL)
-	return nil
-}
-
-func (s *Service) VerifyLogin(ctx context.Context, phone, code string) (*AuthResult, error) {
-	key := loginKey(phone)
-	stored, err := s.kv.Get(ctx, key)
-	if errors.Is(err, errKVNotFound) {
-		return nil, ErrInvalidOTP
-	}
-	if err != nil {
-		return nil, err
-	}
-	if string(stored) != code {
-		return nil, ErrInvalidOTP
-	}
-	user, err := s.repo.FindByPhone(ctx, phone)
 	if err != nil {
 		return nil, err
 	}
 	if user.Status == StatusSuspended {
 		return nil, ErrAccountSuspended
 	}
-	_ = s.kv.Del(ctx, key)
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return nil, ErrInvalidCredentials
+	}
 	return s.issueTokens(ctx, user)
 }
 
@@ -180,8 +196,7 @@ func (s *Service) issueTokens(ctx context.Context, user *User) (*AuthResult, err
 	}, nil
 }
 
-func registerKey(phone string) string { return "auth:register:" + phone }
-func loginKey(phone string) string    { return "auth:login:" + phone }
+func registerKey(email string) string { return "auth:register:" + email }
 func sessionKey(userID uint64) string { return "auth:session:" + strconv.FormatUint(userID, 10) }
 
 func generateOTP() (string, error) {

@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/router/app_router.dart';
 import 'auth_controller.dart';
 
 class VerifyOtpScreen extends ConsumerStatefulWidget {
@@ -25,11 +23,11 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    // No manual nav — the router watches the auth state and redirects to /home
+    // once verifyOtp succeeds and a user is set.
     await ref
         .read(authControllerProvider.notifier)
         .verifyOtp(_codeController.text.trim());
-    // No manual nav — the router watches `user.id` and redirects to /home
-    // once verifyOtp succeeds.
   }
 
   @override
@@ -41,66 +39,73 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       ref.read(authControllerProvider.notifier).clearError();
     });
 
-    final phone = state.pendingPhone;
-    if (phone == null) {
-      // Defensive: someone deep-linked here without a pending verification.
-      return Scaffold(
-        appBar: AppBar(title: const Text('Verify')),
-        body: Center(
-          child: TextButton(
-            onPressed: () => context.go(AppRoutes.login),
-            child: const Text('Start over'),
-          ),
-        ),
+    final email = state.pendingEmail;
+    if (email == null) {
+      // Defensive: someone landed here without a pending verification. The
+      // router redirects to onboarding once the (null) pending state is read.
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Enter code')),
+      appBar: AppBar(
+        title: const Text('Verify Email'),
+        centerTitle: true,
+      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 12),
-                Text(
-                  'We sent a 6-digit code to $phone.',
-                  style: Theme.of(context).textTheme.bodyLarge,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 12),
+                    Text(
+                      'We emailed a 6-digit code to $email.',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 24),
+                    TextFormField(
+                      key: const ValueKey('verify_otp_code_field'),
+                      controller: _codeController,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(letterSpacing: 8, fontSize: 24),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(counterText: ''),
+                      validator: (v) =>
+                          (v == null || v.length != 6) ? 'Enter 6 digits' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      key: const ValueKey('verify_otp_submit_button'),
+                      onPressed: state.isLoading ? null : _submit,
+                      child: state.isLoading
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Verify'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: state.isLoading
+                          ? null
+                          : () => ref
+                              .read(authControllerProvider.notifier)
+                              .cancelRegistration(),
+                      child: const Text('Use a different email'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 24),
-                TextFormField(
-                  controller: _codeController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(letterSpacing: 8, fontSize: 24),
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(counterText: ''),
-                  validator: (v) =>
-                      (v == null || v.length != 6) ? '6 digits' : null,
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: state.isLoading ? null : _submit,
-                  child: state.isLoading
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Verify'),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: state.isLoading
-                      ? null
-                      : () => context.go(AppRoutes.login),
-                  child: const Text('Use a different number'),
-                ),
-              ],
+              ),
             ),
           ),
         ),

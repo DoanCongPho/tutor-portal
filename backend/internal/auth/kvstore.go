@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	redis "github.com/redis/go-redis/v9"
 )
 
 // kvStore is the minimal Redis-shaped key/value interface the auth service

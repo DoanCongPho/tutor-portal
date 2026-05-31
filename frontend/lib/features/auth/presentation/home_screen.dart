@@ -19,8 +19,7 @@ class HomeScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout),
-            onPressed: () =>
-                ref.read(authControllerProvider.notifier).logout(),
+            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
           ),
         ],
       ),
@@ -45,7 +44,7 @@ class HomeScreen extends ConsumerWidget {
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   Text(
-                    '${user.role} · ${user.phone}',
+                    '${user.role} · ${user.email}',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],

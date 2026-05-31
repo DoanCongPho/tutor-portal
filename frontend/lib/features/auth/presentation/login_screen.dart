@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_theme.dart';
 import 'auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -14,23 +15,25 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final controller = ref.read(authControllerProvider.notifier);
-    await controller.startLogin(_phoneController.text.trim());
-    if (!mounted) return;
-    final state = ref.read(authControllerProvider);
-    if (state.otpSent && state.errorMessage == null) {
-      context.go(AppRoutes.verify);
-    }
+    // No manual nav — the router watches `user.id` and redirects to /home
+    // once login succeeds.
+    await ref.read(authControllerProvider.notifier).login(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
   }
 
   @override
@@ -46,161 +49,214 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Login'),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go(AppRoutes.onboarding),
+        ),
+      ),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final hPadding = constraints.maxWidth >= 600 ? 40.0 : 24.0;
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: hPadding,
-                    vertical: 24,
-                  ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 16),
+                    Text(
+                      'Welcome Back!',
+                      style: text.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Sign in to continue your learning journey',
+                      style: text.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    _FieldLabel('Email'),
+                    TextFormField(
+                      key: const ValueKey('login_email_field'),
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        hintText: 'name@example.com',
+                        prefixIcon:
+                            Icon(Icons.mail_outline, color: AppTheme.authHint),
+                      ),
+                      validator: _validateEmail,
+                    ),
+                    const SizedBox(height: 16),
+                    _FieldLabel('Password'),
+                    TextFormField(
+                      key: const ValueKey('login_password_field'),
+                      controller: _passwordController,
+                      obscureText: _obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _submit(),
+                      decoration: InputDecoration(
+                        hintText: 'Your password',
+                        prefixIcon: const Icon(
+                          Icons.lock_outline,
+                          color: AppTheme.authHint,
+                        ),
+                        suffixIcon: IconButton(
+                          color: AppTheme.authHint,
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                        ),
+                      ),
+                      validator: (v) => (v == null || v.isEmpty)
+                          ? 'Password is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        key: const ValueKey('login_forgot_password_button'),
+                        onPressed: state.isLoading
+                            ? null
+                            : () => context.go(AppRoutes.forgotPassword),
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(0, 0),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('Forgot Password?'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      key: const ValueKey('login_submit_button'),
+                      onPressed: state.isLoading ? null : _submit,
+                      child: state.isLoading
+                          ? SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: scheme.onPrimary,
+                              ),
+                            )
+                          : const Text('Sign In'),
+                    ),
+                    const SizedBox(height: 20),
+                    _OrDivider(),
+                    const SizedBox(height: 20),
+                    OutlinedButton.icon(
+                      key: const ValueKey('login_google_button'),
+                      onPressed: state.isLoading
+                          ? null
+                          : () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content:
+                                      Text('Google sign-in is coming soon'),
+                                ),
+                              ),
+                      icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                      label: const Text('Continue with Google'),
+                    ),
+                    const SizedBox(height: 24),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        const SizedBox(height: 24),
-                        const _BrandHeader(),
-                        const SizedBox(height: 40),
                         Text(
-                          'Welcome',
-                          style: text.displaySmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: scheme.onSurface,
-                            height: 1.05,
-                          ),
-                        ),
-                        Text(
-                          'back.',
-                          style: text.displaySmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: scheme.primary,
-                            height: 1.05,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Sign in with your phone number to continue.',
+                          "Don't have an account?",
                           style: text.bodyMedium?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),
                         ),
-                        const SizedBox(height: 32),
-                        TextFormField(
-                          key: const ValueKey('login_phone_field'),
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          textInputAction: TextInputAction.done,
-                          onFieldSubmitted: (_) => _submit(),
-                          style: text.bodyLarge,
-                          decoration: InputDecoration(
-                            labelText: 'Phone number',
-                            hintText: '0901234567',
-                            prefixIcon: Icon(
-                              Icons.phone_iphone_rounded,
-                              color: scheme.primary,
-                            ),
-                            // Auth-screen input variant per docs/design-system.md §5.3 —
-                            // brand-tinted fill so the warm cast carries.
-                            fillColor: scheme.primaryContainer.withValues(alpha: 0.35),
-                          ),
-                          validator: _validatePhone,
+                        TextButton(
+                          onPressed: state.isLoading
+                              ? null
+                              : () => context.go(AppRoutes.role),
+                          child: const Text('Sign Up'),
                         ),
-                        const SizedBox(height: 20),
-                        FilledButton(
-                          key: const ValueKey('login_submit_button'),
-                          onPressed: state.isLoading ? null : _submit,
-                          child: state.isLoading
-                              ? SizedBox(
-                                  height: 22,
-                                  width: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: scheme.onPrimary,
-                                  ),
-                                )
-                              : const Text('Send code'),
-                        ),
-                        const SizedBox(height: 32),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'New here?',
-                              style: text.bodyMedium?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: state.isLoading
-                                  ? null
-                                  : () => context.go(AppRoutes.register),
-                              child: const Text('Create an account'),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                  ],
                 ),
               ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _BrandHeader extends StatelessWidget {
-  const _BrandHeader();
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
     return Row(
       children: [
-        Container(
-          height: 64,
-          width: 64,
-          decoration: BoxDecoration(
-            color: scheme.primary,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: scheme.primary.withValues(alpha: 0.35),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Icon(
-            Icons.school_rounded,
-            color: scheme.onPrimary,
-            size: 32,
+        Expanded(child: Divider(color: scheme.outlineVariant)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            'or',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
           ),
         ),
-        const SizedBox(width: 12),
-        Text(
-          'Tutor Portal',
-          style: text.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: scheme.onSurface,
-          ),
-        ),
+        Expanded(child: Divider(color: scheme.outlineVariant)),
       ],
     );
   }
 }
 
-String? _validatePhone(String? value) {
-  if (value == null || value.trim().isEmpty) return 'Phone is required';
-  if (value.trim().length < 8) return 'Phone looks too short';
+/// Small heading shown above each input, per the Login / Sign Up designs.
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          text,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+        ),
+      ),
+    );
+  }
+}
+
+String? _validateEmail(String? value) {
+  final v = value?.trim() ?? '';
+  if (v.isEmpty) return 'Email is required';
+  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v)) {
+    return 'Enter a valid email';
+  }
   return null;
 }

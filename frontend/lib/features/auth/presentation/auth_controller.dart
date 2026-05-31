@@ -4,48 +4,39 @@ import '../../../core/api/api_exception.dart';
 import '../data/auth_repository.dart';
 import '../domain/user.dart';
 
-/// UI-facing state for the auth flow. [user] non-null = logged in. The
-/// pending* fields capture the in-flight register/login step so the verify
-/// screen knows which phone the OTP was sent to and which endpoint to call.
+/// UI-facing state for the auth flow. [user] non-null = logged in.
+/// [pendingEmail] non-null = an email registration is awaiting OTP verification.
 class AuthState {
   const AuthState({
     this.user,
+    this.pendingEmail,
     this.isLoading = false,
     this.errorMessage,
-    this.otpSent = false,
-    this.pendingPhone,
-    this.pendingIsRegistration = false,
   });
 
   final AppUser? user;
+  final String? pendingEmail;
   final bool isLoading;
   final String? errorMessage;
-  final bool otpSent;
-  final String? pendingPhone;
-  final bool pendingIsRegistration;
 
   bool get isAuthenticated => user != null;
+  bool get isAwaitingOtp => pendingEmail != null;
 
   AuthState copyWith({
     AppUser? user,
+    String? pendingEmail,
     bool? isLoading,
     String? errorMessage,
-    bool? otpSent,
-    String? pendingPhone,
-    bool? pendingIsRegistration,
     bool clearError = false,
     bool clearUser = false,
-    bool clearPending = false,
+    bool clearPendingEmail = false,
   }) {
     return AuthState(
       user: clearUser ? null : (user ?? this.user),
+      pendingEmail:
+          clearPendingEmail ? null : (pendingEmail ?? this.pendingEmail),
       isLoading: isLoading ?? this.isLoading,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
-      otpSent: clearPending ? false : (otpSent ?? this.otpSent),
-      pendingPhone: clearPending ? null : (pendingPhone ?? this.pendingPhone),
-      pendingIsRegistration: clearPending
-          ? false
-          : (pendingIsRegistration ?? this.pendingIsRegistration),
     );
   }
 }
@@ -69,43 +60,52 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  Future<void> startRegistration({
-    required String phone,
+  /// Step one of email signup. On success the backend has emailed an OTP and
+  /// [pendingEmail] is set, which the router uses to route to the verify screen.
+  /// [phone] is optional contact info, never verified.
+  Future<void> register({
+    required String email,
     required String role,
     required String name,
+    required String password,
+    String? phone,
   }) async {
     await _run(() async {
-      await _repo.startRegistration(phone: phone, role: role, name: name);
-      state = state.copyWith(
-        otpSent: true,
-        pendingPhone: phone,
-        pendingIsRegistration: true,
+      await _repo.startRegistration(
+        email: email,
+        role: role,
+        name: name,
+        password: password,
+        phone: phone,
       );
+      state = state.copyWith(pendingEmail: email);
     });
   }
 
-  Future<void> startLogin(String phone) async {
-    await _run(() async {
-      await _repo.startLogin(phone);
-      state = state.copyWith(
-        otpSent: true,
-        pendingPhone: phone,
-        pendingIsRegistration: false,
-      );
-    });
-  }
-
+  /// Step two: submit the OTP for the pending email. On success the new account
+  /// is logged in and the pending state cleared.
   Future<void> verifyOtp(String code) async {
-    final phone = state.pendingPhone;
-    if (phone == null) {
-      state = state.copyWith(errorMessage: 'No pending verification.');
-      return;
-    }
+    final email = state.pendingEmail;
+    if (email == null) return;
     await _run(() async {
-      final user = state.pendingIsRegistration
-          ? await _repo.verifyRegistration(phone: phone, code: code)
-          : await _repo.verifyLogin(phone: phone, code: code);
-      state = state.copyWith(user: user, clearPending: true);
+      final user = await _repo.verifyRegistration(email: email, code: code);
+      state = state.copyWith(user: user, clearPendingEmail: true);
+    });
+  }
+
+  /// Abandons a pending registration (e.g. "use a different email"), returning
+  /// the flow to the login/register screens.
+  void cancelRegistration() {
+    state = state.copyWith(clearPendingEmail: true, clearError: true);
+  }
+
+  Future<void> login({
+    required String email,
+    required String password,
+  }) async {
+    await _run(() async {
+      final user = await _repo.login(email: email, password: password);
+      state = state.copyWith(user: user);
     });
   }
 
@@ -134,3 +134,8 @@ class AuthController extends Notifier<AuthState> {
 
 final authControllerProvider =
     NotifierProvider<AuthController, AuthState>(AuthController.new);
+
+/// Role chosen on the "Choose Role" screen, carried into the sign-up form.
+/// Defaults to parent. Lives outside [AuthState] because it's transient signup
+/// UI state, not authentication state.
+final signupRoleProvider = StateProvider<String>((ref) => 'parent');
