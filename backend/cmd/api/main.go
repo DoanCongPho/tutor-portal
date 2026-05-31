@@ -18,6 +18,7 @@ import (
 
 	"github.com/DoanCongPho/tutor-portal/backend/internal/auth"
 	"github.com/DoanCongPho/tutor-portal/backend/internal/config"
+	"github.com/DoanCongPho/tutor-portal/backend/pkg/email"
 	pkgjwt "github.com/DoanCongPho/tutor-portal/backend/pkg/jwt"
 )
 
@@ -35,6 +36,7 @@ func main() {
 	defer rdb.Close()
 
 	signer := pkgjwt.NewSigner(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
+	mailer := newMailer(cfg)
 
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -45,7 +47,7 @@ func main() {
 	})
 
 	v1 := r.Group("/api/v1")
-	auth.New(db, rdb, signer).RegisterRoutes(v1)
+	auth.New(db, rdb, signer, mailer).RegisterRoutes(v1)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.AppPort,
@@ -85,6 +87,25 @@ func openDB(cfg config.Config) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(5)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 	return db, nil
+}
+
+// newMailer returns a Gmail-shaped SMTP sender when SMTP credentials are
+// configured, otherwise a log-only sender (OTP codes printed to the app log)
+// so the signup flow works end to end in dev without an email account. Never
+// rely on the log fallback in production.
+func newMailer(cfg config.Config) email.Sender {
+	if cfg.SMTPHost == "" || cfg.SMTPUsername == "" || cfg.SMTPPassword == "" {
+		log.Printf("WARN email: SMTP not configured — using log-only sender (OTP codes printed to logs, not emailed)")
+		return email.LogSender{}
+	}
+	log.Printf("email: SMTP sender configured (host=%s user=%s)", cfg.SMTPHost, cfg.SMTPUsername)
+	return email.SMTPSender{
+		Host:     cfg.SMTPHost,
+		Port:     cfg.SMTPPort,
+		Username: cfg.SMTPUsername,
+		Password: cfg.SMTPPassword,
+		From:     cfg.SMTPFrom,
+	}
 }
 
 func openRedis(cfg config.Config) (*redis.Client, error) {
