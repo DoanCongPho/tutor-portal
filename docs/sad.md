@@ -645,7 +645,7 @@ CREATE TABLE users (
   id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   role        ENUM('tutor','parent','student','admin') NOT NULL,
   name          VARCHAR(255) NOT NULL,
-  phone         VARCHAR(20) UNIQUE,
+  phone         VARCHAR(20),                       -- not unique; UNIQUE dropped in migration 003
   email         VARCHAR(255) UNIQUE,
   password_hash VARCHAR(255) NOT NULL DEFAULT '',  -- bcrypt; added in migration 002
   avatar_url    VARCHAR(500),

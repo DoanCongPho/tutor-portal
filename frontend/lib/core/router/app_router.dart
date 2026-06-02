@@ -10,6 +10,7 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/onboarding_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/verify_otp_screen.dart';
+import '../../features/tutor/presentation/tutor_onboarding_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -20,6 +21,7 @@ class AppRoutes {
   static const forgotPassword = '/forgot-password';
   static const verifyOtp = '/verify-otp';
   static const home = '/home';
+  static const tutorOnboarding = '/tutor/onboarding';
 }
 
 /// The unauthenticated entry routes (everything in the signup/login flow).
@@ -87,6 +89,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.home,
         builder: (_, __) => const HomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.tutorOnboarding,
+        builder: (_, __) => const TutorOnboardingScreen(),
       ),
     ],
   );

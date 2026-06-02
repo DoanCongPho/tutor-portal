@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	redis "github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/DoanCongPho/tutor-portal/backend/internal/auth"
 	"github.com/DoanCongPho/tutor-portal/backend/internal/config"
+	"github.com/DoanCongPho/tutor-portal/backend/internal/tutor"
 	"github.com/DoanCongPho/tutor-portal/backend/pkg/email"
 	pkgjwt "github.com/DoanCongPho/tutor-portal/backend/pkg/jwt"
 )
@@ -42,12 +44,24 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
+	// CORS. Required for the Flutter web client, which runs from a random
+	// localhost port and makes cross-origin XHRs to the API. Auth uses Bearer
+	// tokens in the Authorization header (not cookies), so AllowCredentials is
+	// not needed and we can allow all origins. TODO: restrict origins in
+	// production via an env-configured allowlist.
+	r.Use(cors.New(cors.Config{
+		AllowAllOrigins: true,
+		AllowMethods:    []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:    []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		MaxAge:          12 * time.Hour,
+	}))
 	r.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
 	v1 := r.Group("/api/v1")
 	auth.New(db, rdb, signer, mailer).RegisterRoutes(v1)
+	tutor.New(db, signer).RegisterRoutes(v1)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.AppPort,

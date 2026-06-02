@@ -355,6 +355,7 @@ All notifications delivered via Firebase Cloud Messaging (FCM).
 id, role, name, phone, email, avatar_url, status, created_at
 ```
 
+
 **tutor_profiles**
 ```
 id, user_id, hourly_rate, bio, is_accepting,
