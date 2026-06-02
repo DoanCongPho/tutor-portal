@@ -9,7 +9,7 @@
 
 **Main Flow:**
 1. Tutor downloads app and selects "Register as Tutor"
-2. Enters phone number → receives OTP → verifies
+2. Enters phone number, full name, and a password (min 8 chars) → account created
 3. Fills in personal info: full name, avatar, bio
 4. Adds teaching subjects and levels (can add multiple via TutorSubject)
 5. Sets hourly rate
@@ -19,7 +19,8 @@
 9. System sends notification to Admin
 
 **Alternate Flow:**
-- 2a. OTP expired → resend OTP (max 3 times)
+- 2a. Phone already registered → system rejects, prompts to log in
+- 2b. Password shorter than 8 chars → system rejects, shows error
 - 6a. File exceeds 20MB → system rejects, shows error
 
 **Postcondition:** Tutor profile created with status `PENDING_REVIEW`

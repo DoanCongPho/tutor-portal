@@ -224,16 +224,16 @@ Dockerfile
 
 ### 6.1 auth
 
-Handles registration, login, OTP verification, token issuance and refresh.
+Handles registration, login (phone + password), token issuance and refresh.
 
 | File | Contents |
 |---|---|
-| `model.go` | `User` struct, role enum, status enum |
-| `repository.go` | `FindByPhone`, `FindByEmail`, `Create`, `UpdateStatus` |
-| `service.go` | Register flow, OTP validation, JWT issuance, token refresh |
+| `model.go` | `User` struct (incl. `PasswordHash`), role enum, status enum |
+| `repository.go` | `FindByPhone`, `FindByEmail`, `FindByID`, `Create`, `UpdateStatus` |
+| `service.go` | Register flow, bcrypt password hashing/verification, JWT issuance, token refresh |
 | `handler.go` | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh` |
 | `dto.go` | `RegisterRequest`, `LoginRequest`, `TokenResponse` |
-| `errors.go` | `ErrPhoneAlreadyExists`, `ErrInvalidOTP`, `ErrAccountSuspended` |
+| `errors.go` | `ErrPhoneAlreadyExists`, `ErrInvalidCredentials`, `ErrAccountSuspended` |
 | `routes.go` | Mount public auth routes (no JWT middleware) |
 | `module.go` | Wire `UserRepository` → `AuthService` → `AuthHandler` |
 
@@ -644,10 +644,11 @@ MAX_CONCURRENT_REQUESTS=3
 CREATE TABLE users (
   id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   role        ENUM('tutor','parent','student','admin') NOT NULL,
-  name        VARCHAR(255) NOT NULL,
-  phone       VARCHAR(20) UNIQUE,
-  email       VARCHAR(255) UNIQUE,
-  avatar_url  VARCHAR(500),
+  name          VARCHAR(255) NOT NULL,
+  phone         VARCHAR(20) UNIQUE,
+  email         VARCHAR(255) UNIQUE,
+  password_hash VARCHAR(255) NOT NULL DEFAULT '',  -- bcrypt; added in migration 002
+  avatar_url    VARCHAR(500),
   status      ENUM('active','suspended') NOT NULL DEFAULT 'active',
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

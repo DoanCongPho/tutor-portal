@@ -25,6 +25,12 @@ type Config struct {
 	JWTAccessTTL  time.Duration
 	JWTRefreshTTL time.Duration
 
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
+
 	AWSAccessKeyID     string
 	AWSSecretAccessKey string
 	AWSRegion          string
@@ -69,6 +75,12 @@ func Load() Config {
 		JWTSecret:     getenv("JWT_SECRET", ""),
 		JWTAccessTTL:  getduration("JWT_ACCESS_TTL", 15*time.Minute),
 		JWTRefreshTTL: getduration("JWT_REFRESH_TTL", 7*24*time.Hour),
+
+		SMTPHost:     getenv("SMTP_HOST", ""),
+		SMTPPort:     getenv("SMTP_PORT", "587"),
+		SMTPUsername: getenv("SMTP_USERNAME", ""),
+		SMTPPassword: getenv("SMTP_PASSWORD", ""),
+		SMTPFrom:     getenv("SMTP_FROM", ""),
 
 		AWSAccessKeyID:     getenv("AWS_ACCESS_KEY_ID", ""),
 		AWSSecretAccessKey: getenv("AWS_SECRET_ACCESS_KEY", ""),
