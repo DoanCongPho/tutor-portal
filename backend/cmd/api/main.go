@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	redis "github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
@@ -42,6 +43,17 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
+	// CORS. The Flutter web client runs from a localhost port and makes
+	// cross-origin requests to the API; without this the browser blocks them.
+	// Auth uses Bearer tokens in the Authorization header (not cookies), so
+	// AllowCredentials is unnecessary and we can allow all origins in dev.
+	// TODO: restrict origins via an env-configured allowlist in production.
+	r.Use(cors.New(cors.Config{
+		AllowAllOrigins: true,
+		AllowMethods:    []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:    []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		MaxAge:          12 * time.Hour,
+	}))
 	r.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})

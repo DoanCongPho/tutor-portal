@@ -5,139 +5,177 @@ handles discovery, scheduling, payments (escrow), and learning materials
 end-to-end. It serves four roles: **Parent**, **Tutor**, **Student**, and
 **Admin** (internal).
 
-**Stack:** Flutter client → Nginx → Go REST API (`/api/v1/`) → MySQL 8 + Redis 7,
-with AWS S3 for files, FCM for push, and Vietnamese payment gateways
-(VNPay / MoMo / ZaloPay). Everything runs locally via Docker Compose.
+**Stack:** Flutter client → Go REST API (`/api/v1/`) → MySQL 8 + Redis 7.
+(AWS S3 for files, FCM for push, and VNPay/MoMo/ZaloPay for payments are planned
+integrations.)
 
 > **Authoritative specs** live in [`docs/`](docs/) — `prd.md` (product),
-> `sad.md` (architecture + DB schema §11), and `use-case-spec.md`. Read those
-> before changing a feature. Engineering conventions are in
-> [`CLAUDE.md`](CLAUDE.md).
+> `sad.md` (architecture + DB schema §11), and `use-case-spec.md`. Engineering
+> conventions are in [`CLAUDE.md`](CLAUDE.md).
+
+> ⚠️ **Local-only for now.** This guide covers running everything **directly on
+> your machine** (local MySQL + Redis + Go + Flutter). Docker files
+> (`docker-compose.yml`, `backend/Dockerfile`) exist but **have not been tested
+> yet** — use the local steps below.
 
 ---
 
 ## Repository layout
 
 ```
-/                 docker-compose.yml, Makefile, nginx/, CLAUDE.md
+/                 Makefile, docker-compose.yml (untested), CLAUDE.md
 /docs             PRD, SAD, use-case spec (source of truth)
 /backend          Go API — module github.com/DoanCongPho/tutor-portal/backend
-/frontend         Flutter client (bootstrap with `make flutter-bootstrap`)
-/nginx            reverse-proxy config used by docker-compose
+/frontend         Flutter client
 /backend/migrations  golang-migrate SQL pairs (NNN_name.up.sql / .down.sql)
 ```
-
-The backend is fully scaffolded (compiles + vets clean, exposes a health
-check). The frontend is a placeholder until you run the one-time bootstrap.
 
 ---
 
 ## Prerequisites
 
-| Tool | Version | Needed for |
-|---|---|---|
-| [Go](https://go.dev/dl/) | 1.25+ | backend |
-| [Docker](https://www.docker.com/) + Compose | latest | full local stack (MySQL, Redis, API, Nginx) |
-| [Flutter](https://docs.flutter.dev/get-started/install) | 3.27+ (Dart 3.6+) | frontend |
-| [golang-migrate](https://github.com/golang-migrate/migrate) | latest | DB migrations (`brew install golang-migrate`) |
+Install these locally:
 
-The root **`Makefile`** is the canonical entry point — run `make help` to list
-every target. Prefer it over raw `go`/`flutter`/`docker` commands.
+| Tool | Version | Install (macOS) |
+|---|---|---|
+| [Go](https://go.dev/dl/) | 1.25+ | `brew install go` |
+| [MySQL](https://dev.mysql.com/) | 8.0 | `brew install mysql` |
+| [Redis](https://redis.io/) | 7 | `brew install redis` |
+| [Flutter](https://docs.flutter.dev/get-started/install) | 3.27+ (Dart 3.6+) | `brew install --cask flutter` |
+| [golang-migrate](https://github.com/golang-migrate/migrate) | latest | `brew install golang-migrate` |
+
+The root **`Makefile`** is the entry point — `make help` lists every target.
 
 ---
 
-## Setup
+## Setup (run everything locally)
+
+### 1. Start MySQL and create the database
 
 ```bash
-# 1. Create the backend env file from the template and fill in secrets
+brew services start mysql        # start a local MySQL server
+
+mysql -u root -p                 # then run the SQL below
+```
+```sql
+CREATE DATABASE tutor_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'app_user'@'localhost' IDENTIFIED BY 'change_me';
+GRANT ALL PRIVILEGES ON tutor_platform.* TO 'app_user'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+### 2. Start Redis
+
+```bash
+brew services start redis        # the API needs Redis for OTP/session state
+```
+
+### 3. Configure `backend/.env` to point at your **local** MySQL + Redis
+
+```bash
 cp backend/.env.example backend/.env
-#    At minimum set DB_PASSWORD, DB_ROOT_PASSWORD, and JWT_SECRET.
-#    (AWS/FCM/payment keys can stay blank for local dev.)
+```
+
+Edit `backend/.env` — the template defaults to the Docker hostnames (`db`,
+`redis`), so for a local run you **must** change the hosts to `127.0.0.1` and
+fill in your DB credentials and a JWT secret:
+
+```dotenv
+APP_PORT=8080
+
+# Database — point at your LOCAL MySQL
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=tutor_platform
+DB_USER=app_user
+DB_PASSWORD=change_me        # the password you set in step 1
+
+# Redis — point at your LOCAL Redis
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+
+# Auth
+JWT_SECRET=some_long_random_string
+```
+
+(AWS / FCM / payment keys can stay blank for local development.)
+
+### 4. Apply database migrations
+
+```bash
+make migrate-up        # builds the DSN from backend/.env (host 127.0.0.1)
+make migrate-status    # should show the latest version
 ```
 
 ---
 
 ## Run
 
-### Option A — full stack in Docker (recommended)
-
-Brings up MySQL, Redis, the API, and Nginx, waits for MySQL to be healthy, then
-applies all migrations:
+### Backend API
 
 ```bash
-make stack-up        # = docker compose up --build -d  +  migrate-up
-make logs            # follow service logs
-make down            # stop and remove containers
+make run               # = cd backend && go run ./cmd/api  (loads backend/.env)
 ```
 
-Health check: `curl http://localhost:8080/api/v1/health` → `{"status":"ok"}`.
-
-### Option B — backend on the host, infra in Docker
-
-Useful for fast iteration on Go code:
+It must be able to reach MySQL and Redis or it exits on startup. Verify:
 
 ```bash
-make up              # start only the docker services (MySQL/Redis/...)
-make migrate-up      # apply migrations (CLI runs from the host → 127.0.0.1:3306)
-make run             # run the API in the foreground (loads backend/.env)
+curl http://localhost:8080/api/v1/health     # -> {"status":"ok"}
 ```
 
 ### Frontend (Flutter)
 
 ```bash
-make flutter-bootstrap   # ONE-TIME: scaffolds the Flutter project (flutter create .)
-make flutter-get         # flutter pub get
-make flutter-run         # launch on the connected device/emulator
+cd frontend
+flutter pub get
 ```
 
-**API base URL per run target.** The Android emulator reaches the host at
-`10.0.2.2`; web/desktop/iOS-simulator use `localhost`. Override at launch:
+Then launch on **one** of:
+
+**Android emulator** — works with the default API URL (`10.0.2.2` is the
+emulator's alias for your host machine):
 
 ```bash
-# web / desktop / iOS simulator
-flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080/api/v1
-
-# physical phone (same Wi-Fi) — use your PC's LAN IP
-flutter run --dart-define=API_BASE_URL=http://192.168.1.10:8080/api/v1
+flutter run -d emulator-5554        # use your emulator id from `flutter devices`
 ```
+
+**Chrome (web)** — the browser runs on the host, so point the app at
+`localhost` via `--dart-define` (one line):
+
+```bash
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080/api/v1
+```
+
+> **Note for the web target:** the API enables CORS (all origins in dev), so
+> Chrome works end-to-end as long as you pass the `--dart-define` above and the
+> backend is running.
 
 ---
 
 ## Migrations
 
-Schema changes ship as a paired `up`/`down` under `backend/migrations/`
-(golang-migrate). Never edit a migration that has already been applied — add a
-new one.
+Schema changes ship as a paired `up`/`down` under `backend/migrations/`. Never
+edit a migration that has already been applied — add a new one.
 
 ```bash
-make migrate-create NAME=add_referrals   # scaffold the next NNN_*.up/.down pair
-make migrate-up                           # apply pending migrations
-make migrate-down                         # roll back the latest (one step)
-make migrate-status                       # current applied version
-make migrate-force V=1                     # recover from a "dirty" state
+make migrate-create NAME=add_xyz     # scaffold the next NNN_*.up/.down pair
+make migrate-up                      # apply pending migrations
+make migrate-down                    # roll back the latest (one step)
+make migrate-status                  # current version
+make migrate-force V=1               # recover from a "dirty" state
 ```
-
-Override the DSN ad-hoc:
-`make migrate-up DATABASE_URL='mysql://user:pass@tcp(host:port)/db'`.
 
 ---
 
-## Common Make targets
+## Handy Make targets
 
 ```bash
 make build     # go build ./...
 make vet       # go vet ./...
 make test      # go test ./...
-make ci        # vet + test (what CI runs)
-make tidy      # go mod tidy
-make fmt       # go fmt ./...
-make flutter-test     # flutter test
-make flutter-analyze  # flutter analyze
-```
-
-Run a single backend package or test directly:
-
-```bash
-cd backend && go test ./internal/tutor
-cd backend && go test -run TestX ./internal/booking
+make ci        # vet + test
+make run       # run the API locally
+make flutter-run       # flutter run
+make flutter-analyze   # flutter analyze
+make flutter-test      # flutter test
 ```
