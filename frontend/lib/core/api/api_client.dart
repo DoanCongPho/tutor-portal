@@ -47,8 +47,28 @@ class ApiClient {
       if (accessToken != null) 'Authorization': 'Bearer $accessToken',
     };
     try {
-      final response =
-          await _client.get(uri, headers: headers).timeout(AppConfig.apiTimeout);
+      final response = await _client
+          .get(uri, headers: headers)
+          .timeout(AppConfig.apiTimeout);
+      return _decode(response);
+    } on http.ClientException catch (e) {
+      throw ApiException(statusCode: 0, message: 'network: ${e.message}');
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteJson(
+    String path, {
+    String? accessToken,
+  }) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}$path');
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+    };
+    try {
+      final response = await _client
+          .delete(uri, headers: headers)
+          .timeout(AppConfig.apiTimeout);
       return _decode(response);
     } on http.ClientException catch (e) {
       throw ApiException(statusCode: 0, message: 'network: ${e.message}');

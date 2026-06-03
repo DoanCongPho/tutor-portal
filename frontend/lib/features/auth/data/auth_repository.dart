@@ -15,9 +15,18 @@ class AuthRepository {
   final AuthApi _api;
   final TokenStorage _storage;
 
+  // In-memory copies of the live session's tokens. The source of truth for the
+  // current session — encrypted storage is only the persistence layer for
+  // surviving restarts (and is unreliable on web, where reads can fail to
+  // decrypt). Keeping the tokens here means an authed feature never has to read
+  // them back from storage mid-session.
+  String? _accessToken;
+  String? _refreshToken;
+
   Future<AppUser?> currentUser() => _storage.readUser();
 
-  Future<String?> currentAccessToken() => _storage.readAccessToken();
+  Future<String?> currentAccessToken() async =>
+      _accessToken ?? await _storage.readAccessToken();
 
   /// Begins email signup. Triggers the backend to email an OTP; no session is
   /// created until [verifyRegistration] succeeds. [phone] is optional contact info.
@@ -61,25 +70,35 @@ class AuthRepository {
   /// refreshed user on success and clears storage on failure (caller should
   /// treat that as a logout).
   Future<AppUser?> refresh() async {
-    final refreshToken = await _storage.readRefreshToken();
+    final refreshToken = _refreshToken ?? await _storage.readRefreshToken();
     if (refreshToken == null) return null;
     try {
       final tokens = await _api.refresh(refreshToken);
       await _persist(tokens);
       return tokens.user;
     } catch (_) {
+      _accessToken = null;
+      _refreshToken = null;
       await _storage.clear();
       return null;
     }
   }
 
-  Future<void> logout() => _storage.clear();
+  Future<void> logout() async {
+    _accessToken = null;
+    _refreshToken = null;
+    await _storage.clear();
+  }
 
-  Future<void> _persist(AuthTokens tokens) => _storage.save(
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        user: tokens.user,
-      );
+  Future<void> _persist(AuthTokens tokens) async {
+    _accessToken = tokens.accessToken;
+    _refreshToken = tokens.refreshToken;
+    await _storage.save(
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: tokens.user,
+    );
+  }
 }
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {

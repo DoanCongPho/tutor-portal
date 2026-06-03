@@ -1,15 +1,20 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/auth_controller.dart';
 import '../../features/auth/presentation/choose_role_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
-import '../../features/auth/presentation/home_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/onboarding_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/verify_otp_screen.dart';
+import '../../features/children/presentation/add_child_screen.dart';
+import '../../features/children/presentation/my_children_screen.dart';
+import '../../features/home/presentation/parent_home_screen.dart';
+import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/shell/presentation/parent_shell.dart';
+import '../../features/shell/presentation/placeholder_screens.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -19,7 +24,15 @@ class AppRoutes {
   static const register = '/register';
   static const forgotPassword = '/forgot-password';
   static const verifyOtp = '/verify-otp';
+  // Parent shell tabs.
   static const home = '/home';
+  static const search = '/search';
+  static const bookings = '/bookings';
+  static const wallet = '/wallet';
+  static const profile = '/profile';
+  // Children flow (nested under the Home tab so the bottom nav stays visible).
+  static const children = '/home/children';
+  static const addChild = '/home/children/add';
 }
 
 /// The unauthenticated entry routes (everything in the signup/login flow).
@@ -32,10 +45,13 @@ const _authFlowRoutes = {
   AppRoutes.verifyOtp,
 };
 
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final listener = _AuthRouterListener(ref);
   ref.onDispose(listener.dispose);
   return GoRouter(
+    navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.onboarding,
     refreshListenable: listener,
     redirect: (context, state) {
@@ -68,10 +84,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.role,
         builder: (_, __) => const ChooseRoleScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.login,
-        builder: (_, __) => const LoginScreen(),
-      ),
+      GoRoute(path: AppRoutes.login, builder: (_, __) => const LoginScreen()),
       GoRoute(
         path: AppRoutes.register,
         builder: (_, __) => const RegisterScreen(),
@@ -84,9 +97,64 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.verifyOtp,
         builder: (_, __) => const VerifyOtpScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.home,
-        builder: (_, __) => const HomeScreen(),
+      // Authenticated parent app: a bottom-nav shell, one branch per tab.
+      StatefulShellRoute.indexedStack(
+        builder: (_, __, navigationShell) =>
+            ParentShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.home,
+                builder: (_, __) => const ParentHomeScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'children',
+                    builder: (_, __) => const MyChildrenScreen(),
+                    routes: [
+                      GoRoute(
+                        path: 'add',
+                        builder: (_, __) => const AddChildScreen(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.search,
+                builder: (_, __) => const SearchScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.bookings,
+                builder: (_, __) => const BookingsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.wallet,
+                builder: (_, __) => const WalletScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.profile,
+                builder: (_, __) => const ProfileScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );
