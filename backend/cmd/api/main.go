@@ -44,11 +44,11 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
-	// CORS. Required for the Flutter web client, which runs from a random
-	// localhost port and makes cross-origin XHRs to the API. Auth uses Bearer
-	// tokens in the Authorization header (not cookies), so AllowCredentials is
-	// not needed and we can allow all origins. TODO: restrict origins in
-	// production via an env-configured allowlist.
+	// CORS. The Flutter web client runs from a localhost port and makes
+	// cross-origin requests to the API; without this the browser blocks them.
+	// Auth uses Bearer tokens in the Authorization header (not cookies), so
+	// AllowCredentials is unnecessary and we can allow all origins in dev.
+	// TODO: restrict origins via an env-configured allowlist in production.
 	r.Use(cors.New(cors.Config{
 		AllowAllOrigins: true,
 		AllowMethods:    []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
