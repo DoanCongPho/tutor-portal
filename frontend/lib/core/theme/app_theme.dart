@@ -24,6 +24,12 @@ class AppTheme {
   static const Color authHint = Color(0xFF9B8E82);
   static const Color _lightOnSurface = Color(0xFF1A1410);
   static const Color _lightOnSurfaceVariant = Color(0xFF6B5E52);
+  // Soft blue informational banner (e.g. the "Average rate …" note in the
+  // tutor onboarding hourly-rate mockup). Not coral — coral is the CTA only.
+  static const Color infoBannerBg = Color(0xFFEAF2FE);
+  static const Color infoBannerFg = Color(0xFF2563C9);
+  // Success green for completed/confirmed states (e.g. an uploaded credential).
+  static const Color success = Color(0xFF2E9E5B);
 
   static ThemeData light() {
     final scheme = ColorScheme.fromSeed(

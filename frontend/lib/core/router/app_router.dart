@@ -15,6 +15,7 @@ import '../../features/home/presentation/parent_home_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/shell/presentation/parent_shell.dart';
 import '../../features/shell/presentation/placeholder_screens.dart';
+import '../../features/tutor/presentation/tutor_onboarding_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -36,6 +37,7 @@ class AppRoutes {
   // Role landings whose full app isn't built yet (coming soon).
   static const tutor = '/tutor';
   static const student = '/student';
+  static const tutorOnboarding = '/tutor/onboarding';
 }
 
 /// Top-level path prefixes that make up the parent app (the parent bottom-nav
@@ -199,6 +201,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ],
           ),
         ],
+      ),
+      GoRoute(
+        path: AppRoutes.tutorOnboarding,
+        builder: (_, __) => const TutorOnboardingScreen(),
       ),
     ],
   );
