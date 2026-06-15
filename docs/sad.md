@@ -700,12 +700,20 @@ CREATE TABLE schedules (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE students (
-  id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  parent_id  BIGINT UNSIGNED NOT NULL,
-  name       VARCHAR(255) NOT NULL,
-  grade      VARCHAR(50),
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (parent_id) REFERENCES users(id)
+  id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  parent_id         BIGINT UNSIGNED NOT NULL,
+  name              VARCHAR(255) NOT NULL,
+  grade             VARCHAR(50),
+  school            VARCHAR(255),                                  -- added in migration 003
+  status            ENUM('pending','connected') NOT NULL DEFAULT 'pending', -- migration 003
+  user_id           BIGINT UNSIGNED NULL,                          -- child's own account once connected; migration 003
+  invite_code       VARCHAR(20) NULL,                              -- shareable connect code while pending; migration 003
+  invite_expires_at DATETIME NULL,                                 -- migration 003
+  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- migration 003
+  INDEX idx_students_invite_code (invite_code),                    -- migration 003
+  FOREIGN KEY (parent_id) REFERENCES users(id),
+  FOREIGN KEY (user_id)   REFERENCES users(id)                     -- migration 003
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE bookings (
