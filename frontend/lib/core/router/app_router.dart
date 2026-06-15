@@ -33,7 +33,37 @@ class AppRoutes {
   // Children flow (nested under the Home tab so the bottom nav stays visible).
   static const children = '/home/children';
   static const addChild = '/home/children/add';
+  // Role landings whose full app isn't built yet (coming soon).
+  static const tutor = '/tutor';
+  static const student = '/student';
 }
+
+/// Top-level path prefixes that make up the parent app (the parent bottom-nav
+/// shell + everything nested under its tabs). Used to gate non-parent roles out
+/// of the parent shell.
+const _parentRoots = [
+  AppRoutes.home,
+  AppRoutes.search,
+  AppRoutes.bookings,
+  AppRoutes.wallet,
+  AppRoutes.profile,
+];
+
+/// Where a freshly authenticated user of [role] belongs. Parent is the only
+/// fully-built experience; tutor and student land on a "coming soon" page.
+String _homeForRole(String role) => switch (role) {
+      'tutor' => AppRoutes.tutor,
+      'student' => AppRoutes.student,
+      _ => AppRoutes.home,
+    };
+
+/// Whether [loc] is a section the given [role] is allowed to view. Keeps each
+/// role inside its own part of the app (a tutor can't open the parent shell).
+bool _locAllowedForRole(String loc, String role) => switch (role) {
+      'tutor' => loc == AppRoutes.tutor,
+      'student' => loc == AppRoutes.student,
+      _ => _parentRoots.any(loc.startsWith),
+    };
 
 /// The unauthenticated entry routes (everything in the signup/login flow).
 const _authFlowRoutes = {
@@ -62,8 +92,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final onAuthFlow = _authFlowRoutes.contains(loc);
 
       if (loggedIn) {
-        // Logged in: keep the user out of the auth flow.
-        return onAuthFlow ? AppRoutes.home : null;
+        // Logged in: route to the role's home and keep each role inside its
+        // own section. Parent gets the full shell; tutor/student land on a
+        // "coming soon" page until those apps are built.
+        final role = auth.user!.role;
+        final roleHome = _homeForRole(role);
+        if (onAuthFlow) return roleHome;
+        return _locAllowedForRole(loc, role) ? null : roleHome;
       }
       // Not logged in. A pending email verification pins the user to the OTP
       // screen until they verify or cancel.
@@ -96,6 +131,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.verifyOtp,
         builder: (_, __) => const VerifyOtpScreen(),
+      ),
+      // Role landings whose full app isn't built yet — coming-soon pages.
+      GoRoute(
+        path: AppRoutes.tutor,
+        builder: (_, __) => const TutorHomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.student,
+        builder: (_, __) => const StudentHomeScreen(),
       ),
       // Authenticated parent app: a bottom-nav shell, one branch per tab.
       StatefulShellRoute.indexedStack(

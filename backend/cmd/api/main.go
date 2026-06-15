@@ -62,7 +62,6 @@ func main() {
 
 	v1 := r.Group("/api/v1")
 	auth.New(db, rdb, signer, mailer).RegisterRoutes(v1)
-	// Authed feature modules share one RequireAuth instance (it carries the signer).
 	authMW := middleware.RequireAuth(signer)
 	children.New(db).RegisterRoutes(v1, authMW)
 
