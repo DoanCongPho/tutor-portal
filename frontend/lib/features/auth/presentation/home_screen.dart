@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/router/app_router.dart';
 import 'auth_controller.dart';
 
 /// Placeholder landing screen so the auth flow has somewhere to go. Replace
@@ -47,6 +49,21 @@ class HomeScreen extends ConsumerWidget {
                     '${user.role} · ${user.email}',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
+                  if (user.isTutor) ...[
+                    const SizedBox(height: 32),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 480),
+                        child: FilledButton(
+                          key: const ValueKey('home_tutor_onboarding_cta'),
+                          onPressed: () =>
+                              context.go(AppRoutes.tutorOnboarding),
+                          child: const Text('Complete your tutor profile'),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
       ),
