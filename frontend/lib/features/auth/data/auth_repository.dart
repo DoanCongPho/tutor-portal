@@ -2,18 +2,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/user.dart';
 import 'auth_api.dart';
+import 'google_sign_in_service.dart';
 import 'token_storage.dart';
 
 /// Single point of truth the rest of the app talks to for auth. Combines
 /// [AuthApi] (HTTP) and [TokenStorage] (persistence) so the controller layer
 /// doesn't have to coordinate them.
 class AuthRepository {
-  AuthRepository({required AuthApi api, required TokenStorage storage})
-      : _api = api,
-        _storage = storage;
+  AuthRepository({
+    required AuthApi api,
+    required TokenStorage storage,
+    required GoogleSignInService google,
+  })  : _api = api,
+        _storage = storage,
+        _google = google;
 
   final AuthApi _api;
   final TokenStorage _storage;
+  final GoogleSignInService _google;
 
   // In-memory copies of the live session's tokens. The source of truth for the
   // current session — encrypted storage is only the persistence layer for
@@ -84,6 +90,34 @@ class AuthRepository {
     }
   }
 
+  /// Runs native Google sign-in and exchanges the ID token with the backend.
+  /// When the result does not need a role the session is already persisted;
+  /// otherwise the caller collects a role and calls [completeGoogleRegistration].
+  /// Returns null if the user cancelled the Google picker.
+  Future<GoogleLoginResult?> signInWithGoogle() async {
+    final idToken = await _google.signIn();
+    if (idToken == null) return null;
+    final result = await _api.googleLogin(idToken);
+    if (!result.needsRole && result.tokens != null) {
+      await _persist(result.tokens!);
+    }
+    return result;
+  }
+
+  /// Completes first-time Google sign-up once a role is chosen; persists the
+  /// new session and returns the user.
+  Future<AppUser> completeGoogleRegistration({
+    required String registrationToken,
+    required String role,
+  }) async {
+    final tokens = await _api.completeGoogleRegistration(
+      registrationToken: registrationToken,
+      role: role,
+    );
+    await _persist(tokens);
+    return tokens.user;
+  }
+
   Future<void> logout() async {
     _accessToken = null;
     _refreshToken = null;
@@ -105,5 +139,6 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
     api: ref.watch(authApiProvider),
     storage: ref.watch(tokenStorageProvider),
+    google: ref.watch(googleSignInServiceProvider),
   );
 });

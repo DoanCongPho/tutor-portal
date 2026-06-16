@@ -648,6 +648,8 @@ CREATE TABLE users (
   phone         VARCHAR(20),                       -- not unique; UNIQUE dropped in migration 003
   email         VARCHAR(255) UNIQUE,
   password_hash VARCHAR(255) NOT NULL DEFAULT '',  -- bcrypt; added in migration 002
+  auth_provider ENUM('password','google') NOT NULL DEFAULT 'password', -- migration 005
+  google_sub    VARCHAR(255) UNIQUE,               -- Google ID-token "sub"; NULL for password accounts; migration 005
   avatar_url    VARCHAR(500),
   status      ENUM('active','suspended') NOT NULL DEFAULT 'active',
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -704,16 +706,16 @@ CREATE TABLE students (
   parent_id         BIGINT UNSIGNED NOT NULL,
   name              VARCHAR(255) NOT NULL,
   grade             VARCHAR(50),
-  school            VARCHAR(255),                                  -- added in migration 003
-  status            ENUM('pending','connected') NOT NULL DEFAULT 'pending', -- migration 003
-  user_id           BIGINT UNSIGNED NULL,                          -- child's own account once connected; migration 003
-  invite_code       VARCHAR(20) NULL,                              -- shareable connect code while pending; migration 003
-  invite_expires_at DATETIME NULL,                                 -- migration 003
+  school            VARCHAR(255),                                  -- added in migration 004
+  status            ENUM('pending','connected') NOT NULL DEFAULT 'pending', -- migration 004
+  user_id           BIGINT UNSIGNED NULL,                          -- child's own account once connected; migration 004
+  invite_code       VARCHAR(20) NULL,                              -- shareable connect code while pending; migration 004
+  invite_expires_at DATETIME NULL,                                 -- migration 004
   created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- migration 003
-  INDEX idx_students_invite_code (invite_code),                    -- migration 003
+  updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- migration 004
+  INDEX idx_students_invite_code (invite_code),                    -- migration 004
   FOREIGN KEY (parent_id) REFERENCES users(id),
-  FOREIGN KEY (user_id)   REFERENCES users(id)                     -- migration 003
+  FOREIGN KEY (user_id)   REFERENCES users(id)                     -- migration 004
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE bookings (

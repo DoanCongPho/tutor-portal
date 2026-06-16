@@ -21,7 +21,10 @@ type Module struct {
 // mailer delivers the signup OTP. Pass nil to fall back to email.LogSender,
 // which writes the code to the app log instead of dialing out — fine for dev,
 // never for production.
-func New(db *gorm.DB, rdb *redis.Client, signer *pkgjwt.Signer, mailer email.Sender) *Module {
+//
+// googleClientID is the audience Google ID tokens are verified against (the
+// Firebase Web/server OAuth client id); see config.GoogleOAuthClientID.
+func New(db *gorm.DB, rdb *redis.Client, signer *pkgjwt.Signer, mailer email.Sender, googleClientID string) *Module {
 	var kv kvStore
 	if rdb != nil {
 		kv = &redisStore{client: rdb}
@@ -32,7 +35,7 @@ func New(db *gorm.DB, rdb *redis.Client, signer *pkgjwt.Signer, mailer email.Sen
 		mailer = email.LogSender{}
 	}
 	repo := NewRepository(db)
-	svc := NewService(repo, kv, signer, mailer)
+	svc := NewService(repo, kv, signer, mailer, newGoogleVerifier(googleClientID))
 	return &Module{handler: NewHandler(svc)}
 }
 

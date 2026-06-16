@@ -165,12 +165,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       key: const ValueKey('login_google_button'),
                       onPressed: state.isLoading
                           ? null
-                          : () => ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content:
-                                      Text('Google sign-in is coming soon'),
-                                ),
-                              ),
+                          : () => ref
+                              .read(authControllerProvider.notifier)
+                              .signInWithGoogle(),
                       icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
                       label: const Text('Continue with Google'),
                     ),

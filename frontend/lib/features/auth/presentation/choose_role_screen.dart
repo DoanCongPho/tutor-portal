@@ -16,6 +16,16 @@ class ChooseRoleScreen extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final selected = ref.watch(signupRoleProvider);
+    final auth = ref.watch(authControllerProvider);
+    // Reached mid Google sign-up: picking a role finishes account creation here
+    // instead of continuing to the email registration form.
+    final googleMode = auth.needsRoleSelection;
+
+    ref.listen(authControllerProvider.select((s) => s.errorMessage), (_, msg) {
+      if (msg == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      ref.read(authControllerProvider.notifier).clearError();
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -23,7 +33,16 @@ class ChooseRoleScreen extends ConsumerWidget {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(AppRoutes.onboarding),
+          onPressed: auth.isLoading
+              ? null
+              : () {
+                  if (googleMode) {
+                    ref
+                        .read(authControllerProvider.notifier)
+                        .cancelGoogleRegistration();
+                  }
+                  context.go(AppRoutes.onboarding);
+                },
         ),
       ),
       body: SafeArea(
@@ -83,8 +102,27 @@ class ChooseRoleScreen extends ConsumerWidget {
                   const SizedBox(height: 32),
                   FilledButton(
                     key: const ValueKey('choose_role_continue_button'),
-                    onPressed: () => context.go(AppRoutes.register),
-                    child: const Text('Continue'),
+                    onPressed: auth.isLoading
+                        ? null
+                        : () {
+                            if (googleMode) {
+                              ref
+                                  .read(authControllerProvider.notifier)
+                                  .completeGoogleRole(selected);
+                            } else {
+                              context.go(AppRoutes.register);
+                            }
+                          },
+                    child: auth.isLoading
+                        ? SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: scheme.onPrimary,
+                            ),
+                          )
+                        : const Text('Continue'),
                   ),
                 ],
               ),

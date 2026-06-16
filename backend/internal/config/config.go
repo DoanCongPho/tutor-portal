@@ -25,6 +25,12 @@ type Config struct {
 	JWTAccessTTL  time.Duration
 	JWTRefreshTTL time.Duration
 
+	// GoogleOAuthClientID is the audience Google ID tokens are verified against
+	// (the Firebase project's Web/server OAuth client — client_type 3 in
+	// google-services.json). The Flutter client must request its ID token with
+	// this same id as serverClientId, or verification fails on audience.
+	GoogleOAuthClientID string
+
 	SMTPHost     string
 	SMTPPort     string
 	SMTPUsername string
@@ -75,6 +81,11 @@ func Load() Config {
 		JWTSecret:     getenv("JWT_SECRET", ""),
 		JWTAccessTTL:  getduration("JWT_ACCESS_TTL", 15*time.Minute),
 		JWTRefreshTTL: getduration("JWT_REFRESH_TTL", 7*24*time.Hour),
+
+		// Default is the Web client id from frontend/android/app/google-services.json
+		// (client_type 3). Override via env when the Firebase project changes.
+		GoogleOAuthClientID: getenv("GOOGLE_OAUTH_CLIENT_ID",
+			"860812429904-72345i6uiej86722vk1gn9apn32glpg3.apps.googleusercontent.com"),
 
 		SMTPHost:     getenv("SMTP_HOST", ""),
 		SMTPPort:     getenv("SMTP_PORT", "587"),

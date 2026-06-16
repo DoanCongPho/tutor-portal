@@ -1,4 +1,4 @@
--- 003_student_invites: parents connect to a child via an invite code (the
+-- 004_student_invites: parents connect to a child via an invite code (the
 -- "Add Child" / "My Children" mockups). A student row is created in `pending`
 -- status carrying a generated invite_code + expiry; it moves to `connected`
 -- once the code is accepted, at which point user_id links the child's own

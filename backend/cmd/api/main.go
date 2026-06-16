@@ -63,7 +63,7 @@ func main() {
 	})
 
 	v1 := r.Group("/api/v1")
-	auth.New(db, rdb, signer, mailer).RegisterRoutes(v1)
+	auth.New(db, rdb, signer, mailer, cfg.GoogleOAuthClientID).RegisterRoutes(v1)
 	authMW := middleware.RequireAuth(signer)
 	children.New(db).RegisterRoutes(v1, authMW)
 	tutor.New(db, signer).RegisterRoutes(v1)

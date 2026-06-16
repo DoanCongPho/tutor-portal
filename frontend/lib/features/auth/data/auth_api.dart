@@ -62,6 +62,57 @@ class AuthApi {
     );
     return AuthTokens.fromJson(json);
   }
+
+  /// Verifies a Google ID token. Returns either issued tokens (an existing or
+  /// email-linked account) or a registration token requiring role selection (a
+  /// brand-new account) — see [GoogleLoginResult].
+  Future<GoogleLoginResult> googleLogin(String idToken) async {
+    final json = await _client.postJson(
+      '/auth/google',
+      body: {'id_token': idToken},
+    );
+    return GoogleLoginResult.fromJson(json);
+  }
+
+  /// Completes first-time Google sign-up: creates the account with the chosen
+  /// role and returns its token pair.
+  Future<AuthTokens> completeGoogleRegistration({
+    required String registrationToken,
+    required String role,
+  }) async {
+    final json = await _client.postJson(
+      '/auth/google/complete',
+      body: {'registration_token': registrationToken, 'role': role},
+    );
+    return AuthTokens.fromJson(json);
+  }
+}
+
+/// Wraps the backend `GoogleLoginResponse` from `internal/auth/dto.go`, which is
+/// one of two shapes: a returning/linked user carries [tokens] (needsRole
+/// false); a brand-new user carries [registrationToken] (needsRole true) and the
+/// client must collect a role and call [AuthApi.completeGoogleRegistration].
+class GoogleLoginResult {
+  const GoogleLoginResult({
+    required this.needsRole,
+    this.registrationToken,
+    this.tokens,
+  });
+
+  final bool needsRole;
+  final String? registrationToken;
+  final AuthTokens? tokens;
+
+  factory GoogleLoginResult.fromJson(Map<String, dynamic> json) {
+    final auth = json['auth'];
+    return GoogleLoginResult(
+      needsRole: json['needs_role'] as bool? ?? false,
+      registrationToken: json['registration_token'] as String?,
+      tokens: auth == null
+          ? null
+          : AuthTokens.fromJson(auth as Map<String, dynamic>),
+    );
+  }
 }
 
 /// Wraps the backend `TokenResponse` from `internal/auth/dto.go`.

@@ -34,6 +34,30 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+// GoogleLoginRequest carries the Google ID token the client obtained on-device
+// via Google Sign-In. The backend verifies it against the Web client audience.
+type GoogleLoginRequest struct {
+	IDToken string `json:"id_token" binding:"required"`
+}
+
+// CompleteGoogleRegistrationRequest finishes first-time Google sign-up: the
+// client returns the short-lived registration_token from GoogleLoginResponse
+// together with the role the user picked, and the account is created.
+type CompleteGoogleRegistrationRequest struct {
+	RegistrationToken string `json:"registration_token" binding:"required"`
+	Role              string `json:"role"               binding:"required,oneof=tutor parent student"`
+}
+
+// GoogleLoginResponse is intentionally one of two shapes:
+//   - returning/linked user → NeedsRole=false, Auth populated (tokens issued)
+//   - brand-new user        → NeedsRole=true, RegistrationToken set, Auth nil;
+//     the client must collect a role and call /auth/google/complete.
+type GoogleLoginResponse struct {
+	NeedsRole         bool           `json:"needs_role"`
+	RegistrationToken string         `json:"registration_token,omitempty"`
+	Auth              *TokenResponse `json:"auth,omitempty"`
+}
+
 type UserDTO struct {
 	ID    uint64 `json:"id"`
 	Email string `json:"email,omitempty"`

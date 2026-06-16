@@ -10,31 +10,43 @@ class AuthState {
   const AuthState({
     this.user,
     this.pendingEmail,
+    this.googleRegistrationToken,
     this.isLoading = false,
     this.errorMessage,
   });
 
   final AppUser? user;
   final String? pendingEmail;
+
+  /// Non-null after a first-time Google sign-in: the short-lived backend token
+  /// to redeem once the user picks a role (see [completeGoogleRole]). Drives the
+  /// router to pin the user on the role screen until they choose.
+  final String? googleRegistrationToken;
   final bool isLoading;
   final String? errorMessage;
 
   bool get isAuthenticated => user != null;
   bool get isAwaitingOtp => pendingEmail != null;
+  bool get needsRoleSelection => googleRegistrationToken != null;
 
   AuthState copyWith({
     AppUser? user,
     String? pendingEmail,
+    String? googleRegistrationToken,
     bool? isLoading,
     String? errorMessage,
     bool clearError = false,
     bool clearUser = false,
     bool clearPendingEmail = false,
+    bool clearGoogleRegistrationToken = false,
   }) {
     return AuthState(
       user: clearUser ? null : (user ?? this.user),
       pendingEmail:
           clearPendingEmail ? null : (pendingEmail ?? this.pendingEmail),
+      googleRegistrationToken: clearGoogleRegistrationToken
+          ? null
+          : (googleRegistrationToken ?? this.googleRegistrationToken),
       isLoading: isLoading ?? this.isLoading,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
@@ -107,6 +119,49 @@ class AuthController extends Notifier<AuthState> {
       final user = await _repo.login(email: email, password: password);
       state = state.copyWith(user: user);
     });
+  }
+
+  /// Starts Google sign-in. An existing/linked account logs straight in; a
+  /// brand-new account sets [AuthState.googleRegistrationToken], which routes the
+  /// user to the role screen to finish via [completeGoogleRole]. A cancelled
+  /// picker is a no-op.
+  Future<void> signInWithGoogle() async {
+    await _run(() async {
+      final result = await _repo.signInWithGoogle();
+      if (result == null) return; // user cancelled
+      if (result.needsRole) {
+        state = state.copyWith(
+          googleRegistrationToken: result.registrationToken,
+        );
+      } else if (result.tokens != null) {
+        state = state.copyWith(user: result.tokens!.user);
+      }
+    });
+  }
+
+  /// Completes a first-time Google sign-up with the chosen role.
+  Future<void> completeGoogleRole(String role) async {
+    final token = state.googleRegistrationToken;
+    if (token == null) return;
+    await _run(() async {
+      final user = await _repo.completeGoogleRegistration(
+        registrationToken: token,
+        role: role,
+      );
+      state = state.copyWith(
+        user: user,
+        clearGoogleRegistrationToken: true,
+      );
+    });
+  }
+
+  /// Abandons a pending Google role selection (e.g. user backs out), returning
+  /// the flow to the unauthenticated entry screens.
+  void cancelGoogleRegistration() {
+    state = state.copyWith(
+      clearGoogleRegistrationToken: true,
+      clearError: true,
+    );
   }
 
   Future<void> logout() async {

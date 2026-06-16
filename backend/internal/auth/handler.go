@@ -62,6 +62,47 @@ func (h *Handler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, toTokenResponse(result))
 }
 
+// GoogleLogin verifies a Google ID token. A known/linked email logs in (200 with
+// tokens); an unseen email returns 200 with needs_role + a registration token the
+// client follows up with via CompleteGoogleRegistration.
+func (h *Handler) GoogleLogin(c *gin.Context) {
+	var req GoogleLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.badRequest(c, err)
+		return
+	}
+	outcome, err := h.svc.LoginWithGoogle(c.Request.Context(), req.IDToken)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	if outcome.NeedsRole {
+		c.JSON(http.StatusOK, GoogleLoginResponse{
+			NeedsRole:         true,
+			RegistrationToken: outcome.RegistrationToken,
+		})
+		return
+	}
+	tokens := toTokenResponse(outcome.Result)
+	c.JSON(http.StatusOK, GoogleLoginResponse{NeedsRole: false, Auth: &tokens})
+}
+
+// CompleteGoogleRegistration creates a first-time Google user with the chosen
+// role and issues tokens. Returns 201 Created.
+func (h *Handler) CompleteGoogleRegistration(c *gin.Context) {
+	var req CompleteGoogleRegistrationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.badRequest(c, err)
+		return
+	}
+	result, err := h.svc.CompleteGoogleRegistration(c.Request.Context(), req.RegistrationToken, req.Role)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, toTokenResponse(result))
+}
+
 func (h *Handler) Refresh(c *gin.Context) {
 	var req RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -93,6 +134,9 @@ func (h *Handler) respondError(c *gin.Context, err error) {
 	case errors.Is(err, ErrAccountSuspended):
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrInvalidToken), errors.Is(err, ErrSessionExpired):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	case errors.Is(err, ErrGoogleTokenInvalid), errors.Is(err, ErrGoogleEmailUnverified),
+		errors.Is(err, ErrInvalidRegistrationToken):
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})

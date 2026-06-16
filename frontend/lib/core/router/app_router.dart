@@ -107,6 +107,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final auth = ref.read(authControllerProvider);
       final loggedIn = auth.user != null;
       final awaitingOtp = auth.pendingEmail != null;
+      final needsRole = auth.needsRoleSelection;
       final loc = state.matchedLocation;
       final onAuthFlow = _authFlowRoutes.contains(loc);
 
@@ -140,8 +141,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         if (onAuthFlow) return AppRoutes.home;
         return _parentRoots.any(loc.startsWith) ? null : AppRoutes.home;
       }
-      // Not logged in. A pending email verification pins the user to the OTP
-      // screen until they verify or cancel.
+      // Not logged in. A first-time Google sign-in pins the user to the role
+      // screen until they pick a role (which redeems the registration token).
+      if (needsRole) {
+        return loc == AppRoutes.role ? null : AppRoutes.role;
+      }
+      // A pending email verification pins the user to the OTP screen until they
+      // verify or cancel.
       if (awaitingOtp) {
         return loc == AppRoutes.verifyOtp ? null : AppRoutes.verifyOtp;
       }
@@ -344,7 +350,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 class _AuthRouterListener extends ChangeNotifier {
   _AuthRouterListener(Ref ref) {
     ref.listen(
-      authControllerProvider.select((s) => (s.user?.id, s.pendingEmail)),
+      authControllerProvider.select(
+        (s) => (s.user?.id, s.pendingEmail, s.googleRegistrationToken),
+      ),
       (_, __) => notifyListeners(),
     );
     ref.listen(tutorGateProvider, (_, __) => notifyListeners());

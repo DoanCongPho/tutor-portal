@@ -7,5 +7,7 @@ func Routes(rg *gin.RouterGroup, h *Handler) {
 	g.POST("/register", h.Register)
 	g.POST("/register/verify", h.VerifyRegistration)
 	g.POST("/login", h.Login)
+	g.POST("/google", h.GoogleLogin)
+	g.POST("/google/complete", h.CompleteGoogleRegistration)
 	g.POST("/refresh", h.Refresh)
 }

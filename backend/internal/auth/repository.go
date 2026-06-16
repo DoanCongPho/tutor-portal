@@ -38,6 +38,27 @@ func (r *Repository) FindByEmail(ctx context.Context, email string) (*User, erro
 	return &u, nil
 }
 
+// FindByGoogleSub looks a user up by their linked Google subject id — the most
+// reliable match for a returning Google account (email can change; sub doesn't).
+func (r *Repository) FindByGoogleSub(ctx context.Context, sub string) (*User, error) {
+	var u User
+	err := r.db.WithContext(ctx).Where("google_sub = ?", sub).First(&u).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// LinkGoogleSub attaches a Google subject id to an existing account (first time
+// an email/password user signs in with Google on the same verified email).
+func (r *Repository) LinkGoogleSub(ctx context.Context, id uint64, sub string) error {
+	return r.db.WithContext(ctx).Model(&User{}).Where("id = ?", id).
+		Update("google_sub", sub).Error
+}
+
 func (r *Repository) FindByID(ctx context.Context, id uint64) (*User, error) {
 	var u User
 	err := r.db.WithContext(ctx).First(&u, id).Error

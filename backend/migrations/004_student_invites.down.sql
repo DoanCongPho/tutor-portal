@@ -1,4 +1,4 @@
--- Reverses 003_student_invites. Drop the FK and index before the columns.
+-- Reverses 004_student_invites. Drop the FK and index before the columns.
 ALTER TABLE students
   DROP FOREIGN KEY fk_students_user,
   DROP INDEX idx_students_invite_code,
