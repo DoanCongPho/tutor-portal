@@ -65,6 +65,42 @@ func (h *Handler) Connect(c *gin.Context) {
 	c.JSON(http.StatusOK, toChildDTO(st))
 }
 
+// Link is the student-facing connect endpoint: the authenticated student enters
+// the invite code their parent shared, flipping the pending child to connected
+// and linking it to the student's account.
+func (h *Handler) Link(c *gin.Context) {
+	studentID, ok := h.studentID(c)
+	if !ok {
+		return
+	}
+	var req ConnectRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.badRequest(c, err)
+		return
+	}
+	st, err := h.svc.LinkByCode(c.Request.Context(), studentID, req.Code)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toChildDTO(st))
+}
+
+// MyConnection returns the student's current parent link, or 404 if they haven't
+// connected yet (the frontend treats 404 as "not connected").
+func (h *Handler) MyConnection(c *gin.Context) {
+	studentID, ok := h.studentID(c)
+	if !ok {
+		return
+	}
+	st, err := h.svc.MyConnection(c.Request.Context(), studentID)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toChildDTO(st))
+}
+
 func (h *Handler) Regenerate(c *gin.Context) {
 	parentID, ok := h.parentID(c)
 	if !ok {
@@ -104,6 +140,18 @@ func (h *Handler) Delete(c *gin.Context) {
 // by middleware.RequireRole on the route group, so this only guards against a
 // missing id (route mounted without RequireAuth).
 func (h *Handler) parentID(c *gin.Context) (uint64, bool) {
+	id, ok := middleware.UserID(c)
+	if !ok || id == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
+		return 0, false
+	}
+	return id, true
+}
+
+// studentID reads the authenticated user id for the student-facing routes. The
+// student role is enforced by middleware.RequireRole on the route group; this
+// only guards against a missing id.
+func (h *Handler) studentID(c *gin.Context) (uint64, bool) {
 	id, ok := middleware.UserID(c)
 	if !ok || id == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})

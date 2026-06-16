@@ -11,7 +11,9 @@ import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/verify_otp_screen.dart';
 import '../../features/children/presentation/add_child_screen.dart';
 import '../../features/children/presentation/my_children_screen.dart';
+import '../../features/connections/presentation/connect_parents_screen.dart';
 import '../../features/home/presentation/parent_home_screen.dart';
+import '../../features/home/presentation/student_home_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/shell/presentation/parent_shell.dart';
 import '../../features/shell/presentation/placeholder_screens.dart';
@@ -55,6 +57,8 @@ class AppRoutes {
   static const tutorLoading = '/tutor/loading';
   // Student app: a bottom-nav shell (Home · Materials · Tasks · Profile).
   static const studentHome = '/student/home';
+  // Connect-with-parent flow, nested under Home so the bottom nav stays visible.
+  static const studentConnect = '/student/home/connect';
   static const studentMaterials = '/student/materials';
   static const studentTasks = '/student/tasks';
   static const studentProfile = '/student/profile';
@@ -248,6 +252,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.studentHome,
                 builder: (_, __) => const StudentHomeScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'connect',
+                    builder: (_, __) => const ConnectParentsScreen(),
+                  ),
+                ],
               ),
             ],
           ),

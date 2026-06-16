@@ -7,23 +7,9 @@ import "time"
 // scoring depend on the distinction (CancelledByMatch must not count against a
 // tutor). Do not collapse them.
 const (
-	StatusPending            = "pending"
-	StatusConfirmed          = "confirmed"
-	StatusInProgress         = "in_progress"
-	StatusCompleted          = "completed"
-	StatusPaid               = "paid"
-	StatusDisputed           = "disputed"
-	StatusRefunded           = "refunded"
-	StatusCancelledByTutor   = "cancelled_by_tutor"
-	StatusCancelledByParent  = "cancelled_by_parent"
-	StatusCancelledByMatch   = "cancelled_by_match"
-	StatusCancelledByTimeout = "cancelled_by_timeout"
-)
-
-// Teaching levels (bookings.level enum) — same controlled vocabulary as
-// tutor_subjects.level. Defined locally to keep the module self-contained.
-const (
-	LevelPrimary      = "primary"
+	StatusPending     = "pending"
+	StatusConfirmed   = "confirmed"
+	StatusInProgress  = "in_progress"
 	LevelMiddleSchool = "middle_school"
 	LevelHighSchool   = "high_school"
 	LevelUniversity   = "university"

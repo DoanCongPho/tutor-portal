@@ -52,6 +52,39 @@ func (r *Repository) FindByCodeForParent(ctx context.Context, parentID uint64, c
 	return &s, nil
 }
 
+// FindByCode looks up a pending invite by code across all parents. Used by the
+// student-facing link flow, where the student isn't scoped to one parent the way
+// FindByCodeForParent assumes.
+func (r *Repository) FindByCode(ctx context.Context, code string) (*Student, error) {
+	var s Student
+	err := r.db.WithContext(ctx).
+		Where("invite_code = ?", code).
+		First(&s).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrInviteNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+// FindByUserID returns the child row a connected student account is linked to, or
+// ErrChildNotFound if the student hasn't connected to a parent yet.
+func (r *Repository) FindByUserID(ctx context.Context, userID uint64) (*Student, error) {
+	var s Student
+	err := r.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		First(&s).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrChildNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
 func (r *Repository) Create(ctx context.Context, s *Student) error {
 	return r.db.WithContext(ctx).Create(s).Error
 }

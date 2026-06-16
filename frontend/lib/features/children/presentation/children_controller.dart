@@ -19,6 +19,14 @@ class ChildrenController extends AsyncNotifier<List<Child>> {
     state = await AsyncValue.guard(_repo.list);
   }
 
+  /// Re-fetches in place without flipping to a loading state, so an already-open
+  /// list updates without a spinner flash. Used when the screen regains focus —
+  /// e.g. after a child accepts an invite on their own device, flipping their
+  /// status to connected.
+  Future<void> softRefresh() async {
+    state = await AsyncValue.guard(_repo.list);
+  }
+
   /// Adds a child and returns it (with its fresh invite code) so the caller can
   /// surface the code immediately. Throws on failure — the caller shows the error.
   Future<Child> addChild({

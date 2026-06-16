@@ -22,6 +22,20 @@ class _MyChildrenScreenState extends ConsumerState<MyChildrenScreen> {
   String _query = '';
 
   @override
+  void initState() {
+    super.initState();
+    // Re-fetch each time the screen opens so a connection a child accepted on
+    // their own device shows up here without a manual refresh. Skip on the very
+    // first mount — build() already loads the list — so we don't double-fetch.
+    Future.microtask(() {
+      if (!mounted) return;
+      if (ref.read(childrenControllerProvider).hasValue) {
+        ref.read(childrenControllerProvider.notifier).softRefresh();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
@@ -36,6 +50,13 @@ class _MyChildrenScreenState extends ConsumerState<MyChildrenScreen> {
           color: scheme.onSurface,
         ),
         actions: [
+          IconButton(
+            key: const ValueKey('refresh_children_button'),
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh),
+            onPressed: () =>
+                ref.read(childrenControllerProvider.notifier).softRefresh(),
+          ),
           IconButton(
             key: const ValueKey('add_child_button'),
             tooltip: 'Add child',

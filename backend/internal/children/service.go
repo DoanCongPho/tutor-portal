@@ -77,6 +77,37 @@ func (s *Service) Connect(ctx context.Context, parentID uint64, code string) (*S
 	return st, nil
 }
 
+// LinkByCode is the student-facing side of the connect flow: a student enters
+// the invite code their parent generated, which flips the matching pending child
+// to connected and links it to the student's own account (UserID). Mirrors
+// Connect, but the lookup is global (the student isn't scoped to one parent).
+func (s *Service) LinkByCode(ctx context.Context, studentUserID uint64, code string) (*Student, error) {
+	st, err := s.repo.FindByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if st.Status == StatusConnected {
+		return nil, ErrAlreadyConnected
+	}
+	if st.InviteExpiresAt != nil && time.Now().UTC().After(*st.InviteExpiresAt) {
+		return nil, ErrInviteExpired
+	}
+	st.Status = StatusConnected
+	st.UserID = &studentUserID
+	st.InviteCode = nil
+	st.InviteExpiresAt = nil
+	if err := s.repo.Save(ctx, st); err != nil {
+		return nil, err
+	}
+	return st, nil
+}
+
+// MyConnection returns the child row a student is linked to, or ErrChildNotFound
+// if they haven't connected to a parent yet.
+func (s *Service) MyConnection(ctx context.Context, studentUserID uint64) (*Student, error) {
+	return s.repo.FindByUserID(ctx, studentUserID)
+}
+
 // RegenerateInvite mints a fresh code+expiry for a pending child, e.g. after the
 // previous code lapsed. Connected children have no code to regenerate.
 func (s *Service) RegenerateInvite(ctx context.Context, parentID, childID uint64) (*Student, error) {

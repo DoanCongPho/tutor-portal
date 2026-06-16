@@ -190,18 +190,7 @@ class TutorWalletScreen extends StatelessWidget {
       );
 }
 
-// --- Student shell tabs (the student experience isn't built yet). ---
-
-class StudentHomeScreen extends StatelessWidget {
-  const StudentHomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) => const ComingSoonScreen(
-        title: 'Home',
-        icon: Icons.home_outlined,
-        message: 'Your learning space — upcoming sessions and progress.',
-      );
-}
+// --- Student shell tabs (Home is a real screen; the rest aren't built yet). ---
 
 class StudentMaterialsScreen extends StatelessWidget {
   const StudentMaterialsScreen({super.key});
