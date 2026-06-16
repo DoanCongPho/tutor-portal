@@ -20,6 +20,7 @@ import (
 	"github.com/DoanCongPho/tutor-portal/backend/internal/auth"
 	"github.com/DoanCongPho/tutor-portal/backend/internal/children"
 	"github.com/DoanCongPho/tutor-portal/backend/internal/config"
+	"github.com/DoanCongPho/tutor-portal/backend/internal/material"
 	"github.com/DoanCongPho/tutor-portal/backend/internal/middleware"
 	"github.com/DoanCongPho/tutor-portal/backend/internal/tutor"
 	"github.com/DoanCongPho/tutor-portal/backend/pkg/email"
@@ -66,6 +67,7 @@ func main() {
 	authMW := middleware.RequireAuth(signer)
 	children.New(db).RegisterRoutes(v1, authMW)
 	tutor.New(db, signer).RegisterRoutes(v1)
+	material.New(db).RegisterRoutes(v1, authMW)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.AppPort,

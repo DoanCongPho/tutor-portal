@@ -18,9 +18,8 @@ type SubmitOnboardingRequest struct {
 	HourlyRate uint64 `json:"hourly_rate" binding:"required,gt=0"`
 	Bio        string `json:"bio"         binding:"omitempty,max=5000"`
 
-	Subjects  []SubjectInput  `json:"subjects"  binding:"required,min=1,dive"`
-	Documents []DocumentInput `json:"documents" binding:"required,min=1,dive"`
-	Schedule  []ScheduleInput `json:"schedule"  binding:"required,min=1,dive"`
+	Subjects []SubjectInput  `json:"subjects"  binding:"required,min=1,dive"`
+	Schedule []ScheduleInput `json:"schedule"  binding:"required,min=1,dive"`
 }
 
 type SubjectInput struct {

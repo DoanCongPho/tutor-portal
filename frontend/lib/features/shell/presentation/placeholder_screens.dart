@@ -166,29 +166,61 @@ class RoleComingSoonScreen extends ConsumerWidget {
   }
 }
 
-/// Landing for the tutor role (BottomNav/Tutor: Home · Schedule · Students ·
-/// Wallet · Profile). Stubbed until the tutor experience is built.
-class TutorHomeScreen extends StatelessWidget {
-  const TutorHomeScreen({super.key});
+// --- Tutor shell tabs not built yet (Home + Schedule are real screens). ---
+
+class TutorStudentsScreen extends StatelessWidget {
+  const TutorStudentsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const RoleComingSoonScreen(
-        title: 'Tutor',
-        icon: Icons.school_outlined,
-        message: 'Your tutor workspace — schedule, students and wallet — '
-            'is on the way.',
+  Widget build(BuildContext context) => const ComingSoonScreen(
+        title: 'Students',
+        icon: Icons.people_outline,
+        message: 'Your students, their progress and shared materials.',
       );
 }
 
-/// Landing for the student role (BottomNav/Student: Home · Materials · Tasks ·
-/// Profile). Stubbed until the student experience is built.
+class TutorWalletScreen extends StatelessWidget {
+  const TutorWalletScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const ComingSoonScreen(
+        title: 'Wallet',
+        icon: Icons.account_balance_wallet,
+        message: 'Your earnings, payouts and transaction history.',
+      );
+}
+
+// --- Student shell tabs (the student experience isn't built yet). ---
+
 class StudentHomeScreen extends StatelessWidget {
   const StudentHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const RoleComingSoonScreen(
-        title: 'Student',
+  Widget build(BuildContext context) => const ComingSoonScreen(
+        title: 'Home',
+        icon: Icons.home_outlined,
+        message: 'Your learning space — upcoming sessions and progress.',
+      );
+}
+
+class StudentMaterialsScreen extends StatelessWidget {
+  const StudentMaterialsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const ComingSoonScreen(
+        title: 'Materials',
         icon: Icons.menu_book_outlined,
-        message: 'Your learning space — materials and tasks — is on the way.',
+        message: 'Slides, notes and assignments shared by your tutors.',
+      );
+}
+
+class StudentTasksScreen extends StatelessWidget {
+  const StudentTasksScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const ComingSoonScreen(
+        title: 'Tasks',
+        icon: Icons.assignment_outlined,
+        message: 'Assignments and deadlines to keep track of.',
       );
 }

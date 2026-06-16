@@ -2,7 +2,6 @@ package tutor
 
 import (
 	"context"
-	"time"
 
 	"gorm.io/gorm"
 )
@@ -30,10 +29,7 @@ func (s *Service) SubmitOnboarding(ctx context.Context, userID uint64, req Submi
 	if err != nil {
 		return nil, err
 	}
-	docs, err := buildDocuments(req.Documents)
-	if err != nil {
-		return nil, err
-	}
+
 	slots, err := buildSchedules(req.Schedule)
 	if err != nil {
 		return nil, err
@@ -88,12 +84,7 @@ func (s *Service) SubmitOnboarding(ctx context.Context, userID uint64, req Submi
 			return err
 		}
 
-		now := time.Now().UTC()
-		for i := range docs {
-			docs[i].TutorID = profileID
-			docs[i].UploadedAt = now
-		}
-		return s.repo.InsertDocuments(tx, docs)
+		return nil
 	})
 	if err != nil {
 		return nil, err

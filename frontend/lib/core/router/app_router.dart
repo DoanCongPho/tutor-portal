@@ -15,7 +15,15 @@ import '../../features/home/presentation/parent_home_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/shell/presentation/parent_shell.dart';
 import '../../features/shell/presentation/placeholder_screens.dart';
+import '../../features/shell/presentation/student_shell.dart';
+import '../../features/shell/presentation/tutor_shell.dart';
+import '../../features/tutor/data/tutor_gate.dart';
+import '../../features/tutor/presentation/tutor_dashboard_screen.dart';
+import '../../features/tutor/presentation/tutor_edit_profile_screen.dart';
+import '../../features/tutor/presentation/tutor_loading_screen.dart';
 import '../../features/tutor/presentation/tutor_onboarding_screen.dart';
+import '../../features/tutor/presentation/tutor_profile_screen.dart';
+import '../../features/tutor/presentation/tutor_schedule_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -34,15 +42,27 @@ class AppRoutes {
   // Children flow (nested under the Home tab so the bottom nav stays visible).
   static const children = '/home/children';
   static const addChild = '/home/children/add';
-  // Role landings whose full app isn't built yet (coming soon).
-  static const tutor = '/tutor';
-  static const student = '/student';
+  // Tutor app: a bottom-nav shell (Home · Schedule · Students · Wallet ·
+  // Profile), the onboarding wizard, and the splash shown while we check
+  // whether the tutor has onboarded.
+  static const tutorHome = '/tutor/home';
+  static const tutorSchedule = '/tutor/schedule';
+  static const tutorStudents = '/tutor/students';
+  static const tutorWallet = '/tutor/wallet';
+  static const tutorProfile = '/tutor/profile';
+  static const tutorEditProfile = '/tutor/profile/edit';
   static const tutorOnboarding = '/tutor/onboarding';
+  static const tutorLoading = '/tutor/loading';
+  // Student app: a bottom-nav shell (Home · Materials · Tasks · Profile).
+  static const studentHome = '/student/home';
+  static const studentMaterials = '/student/materials';
+  static const studentTasks = '/student/tasks';
+  static const studentProfile = '/student/profile';
 }
 
-/// Top-level path prefixes that make up the parent app (the parent bottom-nav
-/// shell + everything nested under its tabs). Used to gate non-parent roles out
-/// of the parent shell.
+/// Top-level path prefixes that make up each role's bottom-nav shell. Used to
+/// keep a signed-in user inside their own role's section of the app. Each role
+/// has a different set of tabs (see the BottomNav mockups).
 const _parentRoots = [
   AppRoutes.home,
   AppRoutes.search,
@@ -50,22 +70,19 @@ const _parentRoots = [
   AppRoutes.wallet,
   AppRoutes.profile,
 ];
-
-/// Where a freshly authenticated user of [role] belongs. Parent is the only
-/// fully-built experience; tutor and student land on a "coming soon" page.
-String _homeForRole(String role) => switch (role) {
-      'tutor' => AppRoutes.tutor,
-      'student' => AppRoutes.student,
-      _ => AppRoutes.home,
-    };
-
-/// Whether [loc] is a section the given [role] is allowed to view. Keeps each
-/// role inside its own part of the app (a tutor can't open the parent shell).
-bool _locAllowedForRole(String loc, String role) => switch (role) {
-      'tutor' => loc == AppRoutes.tutor,
-      'student' => loc == AppRoutes.student,
-      _ => _parentRoots.any(loc.startsWith),
-    };
+const _tutorRoots = [
+  AppRoutes.tutorHome,
+  AppRoutes.tutorSchedule,
+  AppRoutes.tutorStudents,
+  AppRoutes.tutorWallet,
+  AppRoutes.tutorProfile,
+];
+const _studentRoots = [
+  AppRoutes.studentHome,
+  AppRoutes.studentMaterials,
+  AppRoutes.studentTasks,
+  AppRoutes.studentProfile,
+];
 
 /// The unauthenticated entry routes (everything in the signup/login flow).
 const _authFlowRoutes = {
@@ -94,13 +111,34 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final onAuthFlow = _authFlowRoutes.contains(loc);
 
       if (loggedIn) {
-        // Logged in: route to the role's home and keep each role inside its
-        // own section. Parent gets the full shell; tutor/student land on a
-        // "coming soon" page until those apps are built.
+        // Logged in: route to the role's home and keep each role inside its own
+        // section (each role has a different bottom-nav shell).
         final role = auth.user!.role;
-        final roleHome = _homeForRole(role);
-        if (onAuthFlow) return roleHome;
-        return _locAllowedForRole(loc, role) ? null : roleHome;
+        if (role == 'tutor') {
+          // A tutor goes to their dashboard if they've onboarded, else into the
+          // setup wizard. While the check is in flight, hold on a splash so we
+          // don't flash the wizard before landing on the dashboard.
+          final gate = ref.read(tutorGateProvider);
+          final dest = switch (gate) {
+            TutorGate.loading => AppRoutes.tutorLoading,
+            TutorGate.needsOnboarding => AppRoutes.tutorOnboarding,
+            TutorGate.onboarded => AppRoutes.tutorHome,
+          };
+          if (onAuthFlow) return dest;
+          final allowed = switch (gate) {
+            TutorGate.loading => loc == AppRoutes.tutorLoading,
+            TutorGate.needsOnboarding => loc == AppRoutes.tutorOnboarding,
+            TutorGate.onboarded => _tutorRoots.any(loc.startsWith),
+          };
+          return allowed ? null : dest;
+        }
+        if (role == 'student') {
+          if (onAuthFlow) return AppRoutes.studentHome;
+          return _studentRoots.any(loc.startsWith) ? null : AppRoutes.studentHome;
+        }
+        // Parent: the full bottom-nav shell.
+        if (onAuthFlow) return AppRoutes.home;
+        return _parentRoots.any(loc.startsWith) ? null : AppRoutes.home;
       }
       // Not logged in. A pending email verification pins the user to the OTP
       // screen until they verify or cancel.
@@ -134,14 +172,104 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.verifyOtp,
         builder: (_, __) => const VerifyOtpScreen(),
       ),
-      // Role landings whose full app isn't built yet — coming-soon pages.
+      // Splash while we check whether the tutor has onboarded.
       GoRoute(
-        path: AppRoutes.tutor,
-        builder: (_, __) => const TutorHomeScreen(),
+        path: AppRoutes.tutorLoading,
+        builder: (_, __) => const TutorLoadingScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.student,
-        builder: (_, __) => const StudentHomeScreen(),
+      // Authenticated tutor app: bottom-nav shell (Home · Schedule · Students ·
+      // Wallet · Profile). Reached only once onboarding is complete.
+      StatefulShellRoute.indexedStack(
+        builder: (_, __, navigationShell) =>
+            TutorShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.tutorHome,
+                builder: (_, __) => const TutorDashboardScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.tutorSchedule,
+                builder: (_, __) => const TutorScheduleScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.tutorStudents,
+                builder: (_, __) => const TutorStudentsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.tutorWallet,
+                builder: (_, __) => const TutorWalletScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.tutorProfile,
+                builder: (_, __) => const TutorProfileScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'edit',
+                    builder: (_, __) => const TutorEditProfileScreen(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      // Authenticated student app: bottom-nav shell (Home · Materials · Tasks ·
+      // Profile). Fewer tabs than parent/tutor.
+      StatefulShellRoute.indexedStack(
+        builder: (_, __, navigationShell) =>
+            StudentShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.studentHome,
+                builder: (_, __) => const StudentHomeScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.studentMaterials,
+                builder: (_, __) => const StudentMaterialsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.studentTasks,
+                builder: (_, __) => const StudentTasksScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.studentProfile,
+                builder: (_, __) => const ProfileScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
       // Authenticated parent app: a bottom-nav shell, one branch per tab.
       StatefulShellRoute.indexedStack(
@@ -211,11 +339,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 });
 
 /// Bridges Riverpod state changes into go_router's [Listenable]-based refresh.
+/// Watches auth (login/logout/OTP) and the tutor onboarding gate, so the
+/// redirect re-runs the moment the tutor's onboarding status resolves.
 class _AuthRouterListener extends ChangeNotifier {
   _AuthRouterListener(Ref ref) {
     ref.listen(
       authControllerProvider.select((s) => (s.user?.id, s.pendingEmail)),
       (_, __) => notifyListeners(),
     );
+    ref.listen(tutorGateProvider, (_, __) => notifyListeners());
   }
 }

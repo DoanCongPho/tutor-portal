@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
+import '../data/tutor_gate.dart';
 import 'steps/step_documents.dart';
 import 'steps/step_personal.dart';
 import 'steps/step_rate.dart';
@@ -56,7 +57,7 @@ class TutorOnboardingScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (state.isFirstStep) {
-              context.go(AppRoutes.home);
+              context.go(AppRoutes.tutorHome);
             } else {
               ctrl.back();
             }
@@ -247,7 +248,12 @@ class _SubmittedView extends ConsumerWidget {
                   const SizedBox(height: 32),
                   FilledButton(
                     key: const ValueKey('onboarding_done_button'),
-                    onPressed: () => context.go(AppRoutes.home),
+                    onPressed: () {
+                      // Profile created — flip the gate so the router lets the
+                      // tutor into the dashboard instead of the wizard.
+                      ref.read(tutorGateProvider.notifier).markOnboarded();
+                      context.go(AppRoutes.tutorHome);
+                    },
                     child: const Text('Back to Home'),
                   ),
                 ],
